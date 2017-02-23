@@ -90,6 +90,28 @@ class Subject(object):
         self.tasks.append(cls(self, *args, **kwargs))
 
 class Study(object):
+    """
+    
+    Configuration file
+    ------------------
+    We expect that the current directory contains a `config.yaml` file with
+    the following fields:
+    
+      - motion_capture_data_path
+      - results_path
+
+    An example `config.yaml` may look like the following:
+
+    ```
+    motion_capture_data_path: /home/fred/data
+    results_path: /home/fred/results
+    ```
+
+    The paths do not need to be absolute; they could also be relative. It is
+    expected that the `config.yaml` file is not committed to any source code
+    repository, since different users might choose different values for these
+    settings.
+    """
     def __init__(self, name, generic_model_fpath):
         self.name = name
         self.generic_model_fpath = generic_model_fpath

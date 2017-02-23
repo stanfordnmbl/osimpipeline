@@ -27,12 +27,12 @@ class TaskCopyMotionCaptureData(task.SubjectTask):
             This argument is provided internally by `study.Subject.add_task()`.
         regex_replacements : list of tuples
             Each tuple should have two elements: (a) the pattern to match with
-            the path (relative to the motion capture data path) of any file within
-            the motion capture data path, and (b) the replacement that provides
-            the path to where the file should be copied (relative to dodo.py).
-            The list contains as many of these tuples as you'd like. The
-            regular expression replacements are performed with Python's
-            `re.sub()`.
+            the path (relative to the motion capture data path) of any file
+            within the `motion_capture_data_path`, and (b) the replacement that
+            provides the path to where the file should be copied (relative to
+            the `results_path`).  The list contains as many of these tuples as
+            you'd like. The regular expression replacements are performed with
+            Python's `re.sub()`.
 
         Examples
         --------
