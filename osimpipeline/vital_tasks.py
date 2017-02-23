@@ -56,6 +56,7 @@ class TaskCopyMotionCaptureData(task.SubjectTask):
         # (targets).
         self.registry = dict()
         mocap_dir = self.study.config['motion_capture_data_path']
+        results_dir = self.study.config['results_path']
         # Use regular expressions to copy/rename files.
         import re
 
@@ -64,13 +65,14 @@ class TaskCopyMotionCaptureData(task.SubjectTask):
         for dirpath, dirnames, filenames in os.walk(mocap_dir):
             for fname in filenames:
                 fpath = os.path.join(dirpath, fname)
+                # Form path relative to the mocap directory.
                 fpath_rel_to_mocap = os.path.relpath(fpath, mocap_dir)
                 for pattern, replacement in self.regex_replacements:
                     match = re.search(pattern, fpath_rel_to_mocap)
                     if match != None:
                         # Found at least one match.
-                        destination = re.sub(pattern, replacement,
-                                fpath_rel_to_mocap)
+                        destination = os.path.join(results_dir, re.sub(pattern,
+                            replacement, fpath_rel_to_mocap))
                         self.registry[fpath] = destination
 
     def copy_files(self, file_dep, target):
