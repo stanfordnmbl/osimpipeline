@@ -1,3 +1,3 @@
 from study import *
-from tasks import *
+from task import *
 from vital_tasks import *
