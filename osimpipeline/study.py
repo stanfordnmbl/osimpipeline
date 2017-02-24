@@ -5,15 +5,19 @@ import yaml
 import vital_tasks
 
 class Trial(object):
-    def __init__(self, condition, num, metadata=None):
+    def __init__(self, condition, num, metadata=None,
+            omit_trial_dir=False,
+            ):
         self.condition = condition
         self.subject = condition.subject
         self.study = self.subject.study
         self.num = num
         self.name = 'trial%02i' % num
-        self.rel_path = os.path.join(condition.rel_path, self.name)
+        self.metadata = metadata
+        self.rel_path = (condition.rel_path if omit_trial_dir else
+                os.path.join(condition.rel_path, self.name))
         self.results_exp_path = os.path.join(self.study.config['results_path'],
-                'experiments', condition.rel_path, self.name)
+                'experiments', self.rel_path)
         def list_condition_names():
             """Iterate through all conditions under which this trial sits."""
             cond_names = list()
@@ -55,8 +59,11 @@ class TreadmillTrial(Trial):
     parent conditions folder."""
     def __init__(self, condition, num, 
             right_strikes, right_toeoffs, left_strikes, left_toeoffs,
-            metadata=None):
-        super(TreadmillTrial, self).__init__(condition, num, metadata=metadata)
+            metadata=None,
+            omit_trial_dir=False,
+            ):
+        super(TreadmillTrial, self).__init__(condition, num, metadata=metadata,
+                omit_trial_dir=omit_trial_dir)
 
 class Condition(object):
     """There can be multiple tiers of conditions; conditions can be nested

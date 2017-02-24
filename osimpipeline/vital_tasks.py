@@ -187,19 +187,21 @@ class TaskScaleSetup(task.SubjectTask):
                     {'template': self.prescale_template_fpath},
                     {'subjspecific': self.source_prescale_markerset_fpath},
                     self.fill_prescale_markerset_template)
+            self.actions.append((self.copy_file,
+                [[self.source_prescale_markerset_fpath],
+                    [self.results_prescale_markerset_fpath]]))
         else:
             # We have already filled out the template prescale markerset,
             # and the user might have made changes to it.
             self.file_dep.append(self.source_prescale_markerset_fpath)
-        self.add_action(
-                [self.source_prescale_markerset_fpath],
-                [self.results_prescale_markerset_fpath],
-                self.copy_file)
+            self.add_action(
+                    [self.source_prescale_markerset_fpath],
+                    [self.results_prescale_markerset_fpath],
+                    self.copy_file)
 
         self.file_dep += addtl_file_dep
 
     def fill_prescale_markerset_template(self, file_dep, target):
-        # TODO
         if not os.path.exists(target['subjspecific']):
             ft = open(file_dep['template'])
             content = ft.read()
@@ -478,14 +480,15 @@ class TaskIKSetup(task.TrialTask):
                     ['templates/ik/tasks.xml'],
                     [self.source_tasks_fpath],
                     self.fill_tasks_template)
+            self.actions.append((self.copy_file,
+                [[self.source_tasks_fpath], [self.results_tasks_fpath]]))
         else:
             # We have already filled out the template tasks file,
             # and the user might have made changes to it.
-            self.file_dep.append(self.source_tasks_fpath)
-        self.add_action(
-                [self.source_tasks_fpath],
-                [self.results_tasks_fpath],
-                self.copy_file)
+            self.add_action(
+                    [self.source_tasks_fpath],
+                    [self.results_tasks_fpath],
+                    self.copy_file)
 
         # setup.xml.
         # ----------
