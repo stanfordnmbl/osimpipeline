@@ -12,12 +12,7 @@ class TaskCopyGenericModelToResults(task.StudyTask):
         self.add_action(
                 [study.source_generic_model_fpath],
                 [study.generic_model_fpath],
-                self.copy_generic_model)
-    def copy_generic_model(self, file_dep, target):
-        import shutil
-        to_dir = os.path.basename(target[0])
-        if not os.path.exists(to_dir): os.makedirs(to_dir)
-        shutil.copyfile(file_dep[0], target[0])
+                self.copy_file)
 
 class TaskCopyMotionCaptureData(task.SubjectTask):
     """This a very generic task for copying motion capture data (marker
@@ -183,6 +178,8 @@ class TaskScaleSetup(task.SubjectTask):
                 self.subject.name)
         self.source_prescale_markerset_fpath = os.path.join(
                 self.source_scale_path, self.prescale_markerset_fname)
+        self.results_prescale_markerset_fpath = os.path.join(
+                self.results_scale_path, self.prescale_markerset_fname)
         if not os.path.exists(self.source_prescale_markerset_fpath):
             # The user does not yet have a markerset in place; fill out the
             # template.
@@ -194,6 +191,10 @@ class TaskScaleSetup(task.SubjectTask):
             # We have already filled out the template prescale markerset,
             # and the user might have made changes to it.
             self.file_dep.append(self.source_prescale_markerset_fpath)
+        self.add_action(
+                [self.source_prescale_markerset_fpath],
+                [self.results_prescale_markerset_fpath],
+                self.copy_file)
 
         self.file_dep += addtl_file_dep
 
@@ -299,17 +300,14 @@ class TaskScale(task.SubjectTask):
         setup_fname = 'setup.xml'
         self.setup_fpath = scale_setup_task.setup_fpath
         self.generic_model_fpath = self.study.generic_model_fpath
-        self.source_prescale_markerset_fpath = \
-                scale_setup_task.source_prescale_markerset_fpath
-        self.results_prescale_markerset_fpath = \
-                os.path.join(scale_setup_task.results_scale_path,
-                        scale_setup_task.prescale_markerset_fname)
         self.marker_trajectories_fpath = \
                 scale_setup_task.mocap_trial.marker_trajectories_fpath
+        self.prescale_markerset_fpath = \
+                scale_setup_task.results_prescale_markerset_fpath
         self.file_dep = [
                 self.setup_fpath,
                 self.generic_model_fpath,
-                scale_setup_task.source_prescale_markerset_fpath,
+                self.prescale_markerset_fpath,
                 self.marker_trajectories_fpath,
                 self.residual_actuators_template,
                 ]
@@ -318,7 +316,6 @@ class TaskScale(task.SubjectTask):
         # -------
         self.actions += [
                 self.check_tasks,
-                self.copy_prescale_markerset,
                 CmdAction('%s/bin/scale -S %s' % (
                     self.study.config['opensim_home'], setup_fname),
                     cwd=scale_setup_task.results_scale_path),
@@ -334,7 +331,6 @@ class TaskScale(task.SubjectTask):
                 self.subject.name)
         self.targets += [
                 self.output_model_fpath,
-                self.results_prescale_markerset_fpath,
                 scale_setup_task.output_motion_fpath,
                 scale_setup_task.output_markerset_fpath,
                 self.residual_actuators_fpath,
@@ -356,7 +352,7 @@ class TaskScale(task.SubjectTask):
         trc = TRCFile(self.marker_trajectories_fpath)
         trc_names = trc.marker_names
         model = Model(self.generic_model_fpath)
-        markerset = MarkerSet(self.source_prescale_markerset_fpath)
+        markerset = MarkerSet(self.prescale_markerset_fpath)
 
         # Markers with IK tasks but without data.
         # ---------------------------------------
@@ -398,13 +394,6 @@ class TaskScale(task.SubjectTask):
         if excess_model_markers != []:
             raise Exception("The following model markers do not have tasks or "
                     "experimental data: {}".format(excess_model_markers))
-
-    def copy_prescale_markerset(self):
-        import shutil
-        to_dir = os.path.basename(self.results_prescale_markerset_fpath)
-        if not os.path.exists(to_dir): os.makedirs(to_dir)
-        shutil.copyfile(self.source_prescale_markerset_fpath,
-                self.results_prescale_markerset_fpath)
 
     def create_residual_actuators(self):
         ft = open(self.residual_actuators_template)

@@ -52,6 +52,12 @@ class Task(object):
             self.targets += target.values()
         self.actions.append((member_function, [file_dep, target]))
 
+    def copy_file(self, file_dep, target):
+        import shutil
+        to_dir = os.path.basename(target[0])
+        if not os.path.exists(to_dir): os.makedirs(to_dir)
+        shutil.copyfile(file_dep[0], target[0])
+
     @classmethod
     def create_doit_tasks(cls):
         """Create a specific task for each registered instance of this
