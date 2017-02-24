@@ -5,7 +5,7 @@ import yaml
 import vital_tasks
 
 class Trial(object):
-    def __init__(self, condition, num, expdata_path_fragment, metadata=None):
+    def __init__(self, condition, num, metadata=None):
         self.condition = condition
         self.subject = condition.subject
         self.study = self.subject.study
@@ -27,7 +27,6 @@ class Trial(object):
 
         self.expdata_path = os.path.join(
                 self.study.config['results_path'], 'experiments',
-                expdata_path_fragment if expdata_path_fragment != None else
                 self.rel_path, 'expdata')
         self.marker_trajectories_fpath = os.path.join(
                 self.expdata_path, 'marker_trajectories.trc')
@@ -49,7 +48,7 @@ class OvergroundTrial(Trial):
     folder."""
     def __init__(self, condition, num, metadata=None):
         super(OvergroundTrial, self).__init__(condition, num,
-                None, metadata=metadata)
+                metadata=metadata)
                 
 class TreadmillTrial(Trial):
     """Treadmill trials have a single expdata folder for all trials, within the
@@ -57,9 +56,7 @@ class TreadmillTrial(Trial):
     def __init__(self, condition, num, 
             right_strikes, right_toeoffs, left_strikes, left_toeoffs,
             metadata=None):
-        super(TreadmillTrial, self).__init__(condition, num, 
-                condition.rel_path,
-                metadata=metadata)
+        super(TreadmillTrial, self).__init__(condition, num, metadata=metadata)
 
 class Condition(object):
     """There can be multiple tiers of conditions; conditions can be nested
