@@ -187,15 +187,23 @@ class Study(object):
     """
     def __init__(self, name, generic_model_fpath):
         self.name = name
-        self.generic_model_fpath = generic_model_fpath
+        self.source_generic_model_fpath = generic_model_fpath
         try:
             with open('config.yaml', 'r') as f:
                 self.config = yaml.load(f)
         except Exception as e:
             raise Exception(e.message +
                     "\nMake sure there is a config.yaml next to dodo.py")
+        # The copy in the results directory.
+        self.generic_model_fpath = os.path.join(self.config['results_path'],
+                'generic_model.osim')
+                #os.path.basename(generic_model_fpath))
 
         self.subjects = list() 
+        self.tasks = list()
+
+        self.add_task(vital_tasks.TaskCopyGenericModelToResults)
+
     def add_subject(self, *args, **kwargs):
         subj = Subject(self, *args, **kwargs)
         assert not self.contains_subject(subj.num)
@@ -208,3 +216,10 @@ class Study(object):
         return None
     def contains_subject(self, num):
         return (self.get_subject(num) != None)
+
+    def add_task(self, cls, *args, **kwargs):
+        """Add a StudyTask for the study.
+        """
+        task = cls(self, *args, **kwargs)
+        self.tasks.append(task)
+        return task

@@ -3,6 +3,22 @@ import os
 import task
 from doit.action import CmdAction
 
+class TaskCopyGenericModelToResults(task.StudyTask):
+    REGISTRY = []
+    def __init__(self, study):
+        super(TaskCopyGenericModelToResults, self).__init__(study)
+        self.name = '%s_copy_generic_model' % study.name
+        self.doc = 'Copy generic model to the results directory.'
+        self.add_action(
+                [study.source_generic_model_fpath],
+                [study.generic_model_fpath],
+                self.copy_generic_model)
+    def copy_generic_model(self, file_dep, target):
+        import shutil
+        to_dir = os.path.basename(target[0])
+        if not os.path.exists(to_dir): os.makedirs(to_dir)
+        shutil.copyfile(file_dep[0], target[0])
+
 class TaskCopyMotionCaptureData(task.SubjectTask):
     """This a very generic task for copying motion capture data (marker
     trajectories, ground reaction, electromyography) and putting it in
@@ -490,6 +506,7 @@ class TaskIKSetup(task.TrialTask):
 class TaskIK(task.ToolTask):
     def __init__(self, trial, ik_setup_task):
         super(TaskIK, self).__init__(trial, 'ik')
+        self.doc = "Run OpenSim's Inverse Kinematics tool."
         self.file_dep += [
                 self.subject.scaled_model_fpath,
                 ik_setup_task.tasks_fpath,

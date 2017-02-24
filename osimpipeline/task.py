@@ -71,13 +71,15 @@ class Task(object):
                     #'clean': instance.clean,
                     }
 
-# class StudyTask(object):
+class StudyTask(Task):
+    def __init__(self, study):
+        super(StudyTask, self).__init__()
+        self.study = study
 
-class SubjectTask(Task):
+class SubjectTask(StudyTask):
     def __init__(self, subject):
-        super(SubjectTask, self).__init__()
+        super(SubjectTask, self).__init__(subject.study)
         self.subject = subject
-        self.study = subject.study
 
 class TrialTask(SubjectTask):
     def __init__(self, trial):
