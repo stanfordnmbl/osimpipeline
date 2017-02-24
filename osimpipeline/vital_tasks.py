@@ -463,11 +463,32 @@ class TaskIKSetup(task.TrialTask):
         super(TaskIKSetup, self).__init__(trial)
         self.name = '%s_ik_setup' % trial.id
         self.doc = 'Create a setup file for Inverse Kinematics.'
-        self.tasks_fpath = os.path.join(trial.rel_path, 'ik', 'tasks.xml')
+        self.results_path = os.path.join(trial.results_exp_path, 'ik')
+
+        # tasks.xml.
+        # ----------
+        self.source_tasks_fpath = os.path.join(trial.rel_path, 'ik',
+                'tasks.xml')
+        self.results_tasks_fpath = os.path.join(self.results_path, 
+                os.path.basename(self.source_tasks_fpath))
+        if not os.path.exists(self.source_tasks_fpath):
+            # The user does not yet have a tasks.xml in place; fill out the
+            # template.
+            self.add_action(
+                    ['templates/ik/tasks.xml'],
+                    [self.source_tasks_fpath],
+                    self.fill_tasks_template)
+        else:
+            # We have already filled out the template tasks file,
+            # and the user might have made changes to it.
+            self.file_dep.append(self.source_tasks_fpath)
         self.add_action(
-                ['templates/ik/tasks.xml'],
-                [self.tasks_fpath],
-                self.fill_tasks_template)
+                [self.source_tasks_fpath],
+                [self.results_tasks_fpath],
+                self.copy_file)
+
+        # setup.xml.
+        # ----------
         self.add_action(
                 ['templates/ik/setup.xml'],
                 [os.path.join(trial.results_exp_path, 'ik', 'setup.xml')],
@@ -493,14 +514,15 @@ class TaskIKSetup(task.TrialTask):
             content = content.replace('@STUDYNAME@', self.study.name)
             content = content.replace('@NAME@', self.trial.id)
             content = content.replace('@MODEL@', os.path.relpath(
-                self.subject.scaled_model_fpath, ik_dir))
+                self.subject.scaled_model_fpath, self.results_path))
             content = content.replace('@TASKS@', os.path.relpath(
-                self.tasks_fpath, ik_dir))
+                self.results_tasks_fpath, self.results_path))
             content = content.replace('@MARKER_FILE@', os.path.relpath(
-                self.trial.marker_trajectories_fpath, ik_dir))
+                self.trial.marker_trajectories_fpath, self.results_path))
             # TODO content = content.replace('@FINALTIME@', '')
         
-        if not os.path.exists(ik_dir): os.makedirs(ik_dir)
+        if not os.path.exists(self.results_path):
+            os.makedirs(self.results_path)
         with open(target[0], 'w') as f:
             f.write(content)
 
@@ -511,7 +533,7 @@ class TaskIK(task.ToolTask):
         self.doc = "Run OpenSim's Inverse Kinematics tool."
         self.file_dep += [
                 self.subject.scaled_model_fpath,
-                ik_setup_task.tasks_fpath,
+                ik_setup_task.results_tasks_fpath,
                 ]
         self.targets += [
                 os.path.join(self.path, '%s_%s_ik_solution.mot' % (

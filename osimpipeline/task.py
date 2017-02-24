@@ -53,8 +53,11 @@ class Task(object):
         self.actions.append((member_function, [file_dep, target]))
 
     def copy_file(self, file_dep, target):
+        """This can be used as the action for derived classes that want to copy
+        a file from one place to another (e.g., from the source to the results
+        directory).
         import shutil
-        to_dir = os.path.basename(target[0])
+        to_dir = os.path.split(target[0])[0]
         if not os.path.exists(to_dir): os.makedirs(to_dir)
         shutil.copyfile(file_dep[0], target[0])
 
