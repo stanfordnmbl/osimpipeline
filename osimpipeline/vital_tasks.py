@@ -94,7 +94,6 @@ class TaskCopyMotionCaptureData(task.SubjectTask):
             import shutil
             shutil.copyfile(source, destination)
 
-
 class TaskScaleSetup(task.SubjectTask):
     """Create a setup file for the OpenSim Scale tool. You must place a
     template model markerset located at
@@ -411,4 +410,31 @@ class TaskScale(task.SubjectTask):
         f.write(content)
         f.close()
 
+
+class TaskGRFGaitLandmarks(task.TrialTask):
+    # TODO not actually a trial task if for treadmill...
+    REGISTRY = []
+    def __init__(self, trial,
+                right_grfy_column_name='ground_force_r_vy',
+                left_grfy_column_name='ground_force_l_vy',
+                **kwargs):
+        super(TaskGRFGaitLandmarks, self).__init__(trial)
+        self.name = '%s_gait_landmarks' % trial.id
+        self.doc = 'Plot vertical ground reaction force.'
+        self.right_grfy_column_name = right_grfy_column_name
+        self.left_grfy_column_name = left_grfy_column_name
+        self.kwargs = kwargs
+        self.add_action(
+                [trial.ground_reaction_fpath],
+                [os.path.join(trial.expdata_path, '..', '%s.pdf' % self.name)],
+                self.save_gait_landmarks_fig)
+    def save_gait_landmarks_fig(self, file_dep, target):
+        from perimysium.postprocessing import gait_landmarks_from_grf
+        import pylab as pl
+        gait_landmarks_from_grf(file_dep[0],
+                right_grfy_column_name=self.right_grfy_column_name,
+                left_grfy_column_name=self.left_grfy_column_name,
+                do_plot=True,
+                **self.kwargs)
+        pl.gcf().savefig(target[0])
 

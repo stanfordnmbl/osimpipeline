@@ -75,4 +75,10 @@ class SubjectTask(Task):
         self.subject = subject
         self.study = subject.study
 
-                    
+class TrialTask(SubjectTask):
+    def __init__(self, trial):
+        super(TrialTask, self).__init__(trial.subject)
+        self.trial = trial
+
+
+

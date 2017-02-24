@@ -2,14 +2,18 @@ import os
 
 import yaml
 
+import vital_tasks
+
 class Trial(object):
-    def __init__(self, condition, num, metadata=None):
+    def __init__(self, condition, num, expdata_path_fragment, metadata=None):
         self.condition = condition
         self.subject = condition.subject
         self.study = self.subject.study
         self.num = num
         self.name = 'trial%02i' % num
         self.rel_path = os.path.join(condition.rel_path, self.name)
+        self.results_exp_path = os.path.join(self.study.config['results_path'],
+                'experiments', condition.rel_path, self.name)
         def list_condition_names():
             """Iterate through all conditions under which this trial sits."""
             cond_names = list()
@@ -21,24 +25,39 @@ class Trial(object):
         self.id = '_'.join([self.subject.name] + list_condition_names() +
                 [self.name])
 
+        self.expdata_path = os.path.join(
+                self.study.config['results_path'], 'experiments',
+                expdata_path_fragment if expdata_path_fragment != None else
+                self.rel_path, 'expdata')
+        self.marker_trajectories_fpath = os.path.join(
+                self.expdata_path, 'marker_trajectories.trc')
+        self.ground_reaction_fpath = os.path.join(
+                self.expdata_path, 'ground_reaction.mot')
+
+        self.tasks = list()
+        # TODO self.add_task(vital_tasks.TaskGRFGaitLandmarks)
+
+    def add_task(self, cls, *args, **kwargs):
+        """Add a TrialTask for this trial
+        """
+        task = cls(self, *args, **kwargs)
+        self.tasks.append(task)
+        return task
+
 class OvergroundTrial(Trial):
     """Overground trials have their own expdata folder within the trial
     folder."""
     def __init__(self, condition, num, metadata=None):
         super(OvergroundTrial, self).__init__(condition, num,
-                metadata=metadata)
-        self.marker_trajectories_fpath = os.path.join(
-                self.study.config['results_path'], 'experiments',
-                self.rel_path, 'expdata', 'marker_trajectories.trc')
+                None, metadata=metadata)
                 
 class TreadmillTrial(Trial):
     """Treadmill trials have a single expdata folder for all trials, within the
     parent conditions folder."""
     def __init__(self, condition, num, start_time, end_time, metadata=None):
-        super(TreadmillTrial, self).__init__(condition, num, metadata=metadata)
-        self.marker_trajectories_fpath = os.path.join(
-                self.study.config['results_path'], 'experiments',
-                condition.rel_path, 'expdata', 'marker_trajectories.trc')
+        super(TreadmillTrial, self).__init__(condition, num, 
+                condition.rel_path,
+                metadata=metadata)
 
 class Condition(object):
     """There can be multiple tiers of conditions; conditions can be nested
