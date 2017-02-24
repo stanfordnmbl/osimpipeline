@@ -438,3 +438,50 @@ class TaskGRFGaitLandmarks(task.TrialTask):
                 **self.kwargs)
         pl.gcf().savefig(target[0])
 
+
+class TaskIKSetup(task.TrialTask):
+    REGISTRY = []
+    def __init__(self, trial):
+        super(TaskIKSetup, self).__init__(trial)
+        self.name = '%s_ik_setup' % trial.id
+        self.doc = 'Create a setup file for Inverse Kinematics.'
+        self.tasks_fpath = os.path.join(trial.rel_path, 'ik', 'tasks.xml')
+        self.add_action(
+                ['templates/ik/tasks.xml'],
+                [self.tasks_fpath],
+                self.fill_tasks_template)
+        self.add_action(
+                ['templates/ik/setup.xml'],
+                [os.path.join(trial.results_exp_path, 'ik', 'setup.xml')],
+                self.fill_setup_template,
+                )
+
+    def fill_tasks_template(self, file_dep, target):
+        if not os.path.exists(target[0]):
+            ik_dir = os.path.split(target[0])[0]
+            with open(file_dep[0]) as ft:
+                content = ft.read()
+                content = content.replace('@STUDYNAME@', self.study.name)
+                content = content.replace('@NAME@', self.trial.id)
+    
+            if not os.path.exists(ik_dir): os.makedirs(ik_dir)
+            with open(target[0], 'w') as f:
+                f.write(content)
+
+    def fill_setup_template(self, file_dep, target):
+        ik_dir = os.path.split(target[0])[0]
+        with open(file_dep[0]) as ft:
+            content = ft.read()
+            content = content.replace('@STUDYNAME@', self.study.name)
+            content = content.replace('@NAME@', self.trial.id)
+            content = content.replace('@MODEL@', os.path.relpath(
+                self.subject.scaled_model_fpath, ik_dir))
+            content = content.replace('@TASKS@', os.path.relpath(
+                self.tasks_fpath, ik_dir))
+            content = content.replace('@MARKER_FILE@', os.path.relpath(
+                self.trial.marker_trajectories_fpath, ik_dir))
+            # TODO content = content.replace('@FINALTIME@', '')
+        
+        if not os.path.exists(ik_dir): os.makedirs(ik_dir)
+        with open(target[0], 'w') as f:
+            f.write(content)

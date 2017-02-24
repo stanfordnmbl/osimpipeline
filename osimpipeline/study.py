@@ -54,7 +54,9 @@ class OvergroundTrial(Trial):
 class TreadmillTrial(Trial):
     """Treadmill trials have a single expdata folder for all trials, within the
     parent conditions folder."""
-    def __init__(self, condition, num, start_time, end_time, metadata=None):
+    def __init__(self, condition, num, 
+            right_strikes, right_toeoffs, left_strikes, left_toeoffs,
+            metadata=None):
         super(TreadmillTrial, self).__init__(condition, num, 
                 condition.rel_path,
                 metadata=metadata)
@@ -135,6 +137,8 @@ class Subject(object):
         # Relative path to the subject folder; can be used for the source
         # directory or the results directory.
         self.rel_path = self.name
+        self.scaled_model_fpath = os.path.join(study.config['results_path'],
+                'experiments', self.rel_path, '%s.osim' % self.name)
         self.conditions = list()
         self.tasks = list()
     def add_condition(self, *args, **kwargs):
