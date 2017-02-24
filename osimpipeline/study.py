@@ -135,7 +135,9 @@ class Subject(object):
         """Add a SubjectTask for this subject.
         Example: `subject.add_task(TaskCopyMotionCaptureData, fcn)`
         """
-        self.tasks.append(cls(self, *args, **kwargs))
+        task = cls(self, *args, **kwargs)
+        self.tasks.append(task)
+        return task
 
 class Study(object):
     """

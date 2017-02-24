@@ -45,7 +45,7 @@ class Task(object):
         if type(target) == list:
             self.targets += target
         else:
-            self.targets == target.values()
+            self.targets += target.values()
         self.actions.append((member_function, [file_dep, target]))
 
     @classmethod
