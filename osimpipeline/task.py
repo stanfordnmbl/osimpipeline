@@ -56,6 +56,7 @@ class Task(object):
         """This can be used as the action for derived classes that want to copy
         a file from one place to another (e.g., from the source to the results
         directory).
+        """
         import shutil
         to_dir = os.path.split(target[0])[0]
         if not os.path.exists(to_dir): os.makedirs(to_dir)
