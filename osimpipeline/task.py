@@ -2,6 +2,10 @@
 These abstract base classes define a 'task' for python-doit. 
 """
 
+import os
+
+from doit.action import CmdAction
+
 class Task(object):
     """The derived class must set `self.name` somewhere within its constructor.
     The derived class must also have its own class variable `REGISTRY = []`.
@@ -80,5 +84,28 @@ class TrialTask(SubjectTask):
         super(TrialTask, self).__init__(trial.subject)
         self.trial = trial
 
+class ToolTask(TrialTask):
+    def __init__(self, trial, tool_folder, exec_name=None, cmd=None, env=None):
+        super(ToolTask, self).__init__(trial)
+        self.name = '%s_%s' % (trial.id, tool_folder)
+        self.path = os.path.join(trial.results_exp_path, tool_folder)
+
+        self.file_dep = [
+                '%s/setup.xml' % self.path
+                ]
+
+        if exec_name == None:
+            exec_name = tool_folder
+        if cmd == None:
+            cmd_action = CmdAction('%s/bin/%s -S setup.xml' %
+                    (self.study.config['opensim_home'], exec_name),
+                    cwd=os.path.abspath(self.path),
+                    env=env)
+        else:
+            cmd_action = CmdAction(cmd, cwd=os.path.abspath(self.path),
+                    env=env)
+        self.actions = [
+                cmd_action,
+                ]
 
 

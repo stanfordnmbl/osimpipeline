@@ -485,3 +485,22 @@ class TaskIKSetup(task.TrialTask):
         if not os.path.exists(ik_dir): os.makedirs(ik_dir)
         with open(target[0], 'w') as f:
             f.write(content)
+
+
+class TaskIK(task.ToolTask):
+    def __init__(self, trial, ik_setup_task):
+        super(TaskIK, self).__init__(trial, 'ik')
+        self.file_dep += [
+                self.subject.scaled_model_fpath,
+                ik_setup_task.tasks_fpath,
+                ]
+        self.targets += [
+                os.path.join(self.path, '%s_%s_ik_solution.mot' % (
+                    self.study.name, trial.id)),
+                os.path.join(self.path, 'ik_model_marker_locations.sto'),
+                ]
+
+
+
+
+
