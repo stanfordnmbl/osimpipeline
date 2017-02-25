@@ -92,7 +92,6 @@ class TaskCopyMotionCaptureData(task.SubjectTask):
         for source, destination in self.registry.items():
             fname = os.path.split(source)[1]
             to_dir = os.path.split(destination)[0]
-
             if not os.path.exists(to_dir): os.makedirs(to_dir)
 
             if os.path.exists(destination):
@@ -318,8 +317,7 @@ class TaskScale(task.SubjectTask):
         # -------
         self.actions += [
                 self.check_tasks,
-                CmdAction('%s/bin/scale -S %s' % (
-                    self.study.config['opensim_home'], setup_fname),
+                CmdAction('"' + os.path.join(self.study.config['opensim_home'], 'bin','scale') + '" -S %s' % (setup_fname),
                     cwd=scale_setup_task.results_scale_path),
                 self.create_residual_actuators,
                 ]
