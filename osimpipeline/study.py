@@ -2,7 +2,23 @@ import os
 
 import yaml
 
+from perimysium.dataman import GaitLandmarks
+
 import vital_tasks
+
+class Cycle(object):
+    """A subject may walk for multiple gait cycles in a given trial,
+    particularly on a treadmill."""
+    def __init__(self, trial, num, gait_landmarks, metadata=None):
+        self.trial = trial
+        self.condition = trial.condition
+        self.subject = trial.subject
+        self.study = trial.study
+        self.num = num
+        self.name = 'cycle%02i' % num
+        self.metadata = metadata
+        self.rel_path = os.path.join(trial.rel_path, self.name)
+        self.id = '_'.join([trial.id, self.name])
 
 class Trial(object):
     def __init__(self, condition, num, metadata=None,
@@ -14,6 +30,8 @@ class Trial(object):
         self.num = num
         self.name = 'trial%02i' % num
         self.metadata = metadata
+        self.cycles = list()
+
         self.rel_path = (condition.rel_path if omit_trial_dir else
                 os.path.join(condition.rel_path, self.name))
         self.results_exp_path = os.path.join(self.study.config['results_path'],
@@ -27,7 +45,7 @@ class Trial(object):
                 cur_cond = condition.parent_condition
             return cond_names
         self.id = '_'.join([self.subject.name] + list_condition_names() +
-                [self.name])
+                [] if omit_trial_dir else [self.name])
 
         self.expdata_path = os.path.join(
                 self.study.config['results_path'], 'experiments',
@@ -48,22 +66,63 @@ class Trial(object):
         return task
 
 class OvergroundTrial(Trial):
-    """Overground trials have their own expdata folder within the trial
-    folder."""
+    """Overground trials have just one cycle."""
     def __init__(self, condition, num, metadata=None):
         super(OvergroundTrial, self).__init__(condition, num,
                 metadata=metadata)
                 
 class TreadmillTrial(Trial):
-    """Treadmill trials have a single expdata folder for all trials, within the
-    parent conditions folder."""
+    """Treadmill trials may have multiple cycles. If a condition has only one
+    trial and it's a treadmill trial, you can omit the unnecessary trial
+    directory using `omit_trial_dir`.
+    
+    Example
+    -------
+    ```
+    trial = condition.add_treadmill_trial(1, omit_trial_dir=True)
+    ```
+
+    The provided strike times are used to automatically create cycles.
+    """
     def __init__(self, condition, num, 
-            right_strikes, right_toeoffs, left_strikes, left_toeoffs,
+            right_strikes=None, right_toeoffs=None,
+            left_strikes=None, left_toeoffs=None,
             metadata=None,
             omit_trial_dir=False,
             ):
         super(TreadmillTrial, self).__init__(condition, num, metadata=metadata,
                 omit_trial_dir=omit_trial_dir)
+
+        # Loop through provided times and create Cycles.
+        # TODO this code may not be sufficiently generic to go here.
+        if right_strikes:
+            for icycle in range(len(right_strikes) - 1):
+                cycle_num = icycle + 1
+                start = right_strikes[icycle]
+                end = right_strikes[icycle + 1]
+                gait_landmarks = GaitLandmarks(
+                        primary_leg='right',
+                        cycle_start=start,
+                        cycle_end=end,
+                        left_strike=left_strikes[icycle],
+                        left_toeoff=left_toeoffs[icycle],
+                        right_strike=start,
+                        right_toeoff=right_toeoffs[icycle],
+                        )
+                self._add_cycle(cycle_num, gait_landmarks)
+
+    def _add_cycle(self, *args, **kwargs):
+        cycle = Cycle(self, *args, **kwargs)
+        assert not self.contains_cycle(cycle.num)
+        self.cycles.append(cycle)
+        return cycle
+    def get_cycle(self, num):
+        for cycle in self.cycles:
+            if cycle.num == num:
+                return cycle
+        return None
+    def contains_cycle(self, num):
+        return (self.get_cycle(num) != None)
 
 class Condition(object):
     """There can be multiple tiers of conditions; conditions can be nested
@@ -119,7 +178,11 @@ class Condition(object):
         new_trial = cond.add_treadmill_trial(1, start_time, end_time)
         ```
         """
-        trial = TreadmillTrial(self, *args, **kwargs)
+        if 'use_type' in kwargs:
+            treadmill_trial_type = kwargs.pop('use_type')
+        else:
+            treadmill_trial_type = TreadmillTrial
+        trial = treadmill_trial_type(self, *args, **kwargs)
         assert not self.contains_trial(trial.num)
         self.trials.append(trial)
         return trial
