@@ -109,9 +109,11 @@ class ToolTask(TrialTask):
         if exec_name == None:
             exec_name = tool_folder
         if cmd == None:
-            cmd_action = CmdAction('"' + os.path.join(self.study.config['opensim_home'],'bin',exec_name) + '" -S setup.xml',
-                    cwd=os.path.abspath(self.path),
-                    env=env)
+            cmd_action = CmdAction('"' + os.path.join(
+                self.study.config['opensim_home'],'bin',exec_name)
+                + '" -S setup.xml',
+                cwd=os.path.abspath(self.path),
+                env=env)
         else:
             cmd_action = CmdAction(cmd, cwd=os.path.abspath(self.path),
                     env=env)

@@ -317,7 +317,9 @@ class TaskScale(task.SubjectTask):
         # -------
         self.actions += [
                 self.check_tasks,
-                CmdAction('"' + os.path.join(self.study.config['opensim_home'], 'bin','scale') + '" -S %s' % (setup_fname),
+                CmdAction(
+                    '"' + os.path.join(self.study.config['opensim_home'],
+                        'bin','scale') + '" -S %s' % (setup_fname),
                     cwd=scale_setup_task.results_scale_path),
                 self.create_residual_actuators,
                 ]
