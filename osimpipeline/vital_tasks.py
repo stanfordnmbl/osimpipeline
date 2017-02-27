@@ -26,11 +26,11 @@ class TaskCopyMotionCaptureData(task.StudyTask):
     treadmill trials) that contains `marker_trajectories.trc` and
     `ground_reaction.mot`.
     
-    Task name: `<studyname>_copy_data`
+    Task name: `<study.name>_copy_data`
     """
     REGISTRY = [] # TODO Find a way to make this unnecessary.
     def __init__(self, study, regex_replacements):
-        """Do not use this constructor directly; use `study.Subject.add_task()`.
+        """Do not use this constructor directly; use `study.add_task()`.
 
         Parameters
         ----------
