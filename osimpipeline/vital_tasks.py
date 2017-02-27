@@ -14,7 +14,7 @@ class TaskCopyGenericModelToResults(task.StudyTask):
                 [study.generic_model_fpath],
                 self.copy_file)
 
-class TaskCopyMotionCaptureData(task.SubjectTask):
+class TaskCopyMotionCaptureData(task.StudyTask):
     """This a very generic task for copying motion capture data (marker
     trajectories, ground reaction, electromyography) and putting it in
     place for creating simulations.
@@ -26,18 +26,16 @@ class TaskCopyMotionCaptureData(task.SubjectTask):
     treadmill trials) that contains `marker_trajectories.trc` and
     `ground_reaction.mot`.
     
-    Task name: `subject<num>_copy_data`
+    Task name: `<studyname>_copy_data`
     """
-    # TODO Turn into a StudyTask, since there is very little about this task
-    # that is subject-specific.
     REGISTRY = [] # TODO Find a way to make this unnecessary.
-    def __init__(self, subject, regex_replacements):
+    def __init__(self, study, regex_replacements):
         """Do not use this constructor directly; use `study.Subject.add_task()`.
 
         Parameters
         ----------
-        subject : study.Subject
-            This argument is provided internally by `study.Subject.add_task()`.
+        study : 
+            This argument is provided internally by `study.add_task()`.
         regex_replacements : list of tuples
             Each tuple should have two elements: (a) the pattern to match with
             the path (relative to the motion capture data path) of any file
@@ -50,13 +48,13 @@ class TaskCopyMotionCaptureData(task.SubjectTask):
         Examples
         --------
         ```
-        subject.add_task(TaskCopyMotionCaptureData, [
+        study.add_task(TaskCopyMotionCaptureData, [
                 ('subject01/Data/Walk_100 02.trc',
                     'subject01/walk1/expdata/marker_trajectories.trc')])
         ```
         """
-        super(TaskCopyMotionCaptureData, self).__init__(subject)
-        self.name = '_'.join([subject.name, 'copy_data'])
+        super(TaskCopyMotionCaptureData, self).__init__(study)
+        self.name = '_'.join([study.name, 'copy_data'])
         self.doc = 'Copy and organize motion capture data.'
         self.regex_replacements = regex_replacements
         self.register_files()
