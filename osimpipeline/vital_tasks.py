@@ -540,13 +540,14 @@ class TaskIK(task.ToolTrialTask):
     def __init__(self, trial, ik_setup_task):
         super(TaskIK, self).__init__(trial, 'ik')
         self.doc = "Run OpenSim's Inverse Kinematics tool."
+        self.solution_fpath = os.path.join(self.path,
+                '%s_%s_ik_solution.mot' % (self.study.name, trial.id))
         self.file_dep += [
                 self.subject.scaled_model_fpath,
                 ik_setup_task.results_tasks_fpath,
                 ]
         self.targets += [
-                os.path.join(self.path, '%s_%s_ik_solution.mot' % (
-                    self.study.name, trial.id)),
+                self.solution_fpath,
                 os.path.join(self.path, 'ik_model_marker_locations.sto'),
                 ]
 

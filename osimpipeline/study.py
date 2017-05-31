@@ -2,9 +2,33 @@ import os
 
 import yaml
 
-from perimysium.dataman import GaitLandmarks
+# from perimysium.dataman import GaitLandmarks
 
 import vital_tasks
+
+class GaitLandmarks(object):
+    """Using a custom GaitLandmarks to provide __getitem__()."""
+    def __init__(self,
+            primary_leg=None,
+            cycle_start=None,
+            cycle_end=None,
+            left_strike=None,
+            left_toeoff=None,
+            right_strike=None,
+            right_toeoff=None):
+        self.primary_leg  = primary_leg
+        self.cycle_start  = cycle_start
+        self.cycle_end    = cycle_end
+        self.left_strike  = left_strike
+        self.left_toeoff  = left_toeoff
+        self.right_strike = right_strike
+        self.right_toeoff = right_toeoff
+
+    def cycle_duration(self):
+        return self.cycle_end - self.cycle_start
+
+    def __getitem__(self, key):
+        return getattr(self, key)
 
 class Cycle(object):
     """A subject may walk for multiple gait cycles in a given trial,
