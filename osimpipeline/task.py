@@ -96,9 +96,14 @@ class TrialTask(SubjectTask):
         super(TrialTask, self).__init__(trial.subject)
         self.trial = trial
 
-class ToolTask(TrialTask):
+class CycleTask(TrialTask):
+    def __init__(self, cycle):
+        super(CycleTask, self).__init__(cycle.trial)
+        self.cycle = cycle
+
+class ToolTrialTask(TrialTask):
     def __init__(self, trial, tool_folder, exec_name=None, cmd=None, env=None):
-        super(ToolTask, self).__init__(trial)
+        super(ToolTrialTask, self).__init__(trial)
         self.name = '%s_%s' % (trial.id, tool_folder)
         self.path = os.path.join(trial.results_exp_path, tool_folder)
 
@@ -121,4 +126,27 @@ class ToolTask(TrialTask):
                 cmd_action,
                 ]
 
+class ToolCycleTask(CycleTask):
+    def __init__(self, cycle, tool_folder, exec_name=None, cmd=None, env=None):
+        super(ToolCycleTask, self).__init__(cycle)
+        self.name = '%s_%s' % (cycle.id, tool_folder)
+        self.path = os.path.join(cycle.results_exp_path, tool_folder)
 
+        self.file_dep = [
+                '%s/setup.xml' % self.path
+                ]
+
+        if exec_name == None:
+            exec_name = tool_folder
+        if cmd == None:
+            cmd_action = CmdAction('"' + os.path.join(
+                self.study.config['opensim_home'],'bin',exec_name)
+                + '" -S setup.xml',
+                cwd=os.path.abspath(self.path),
+                env=env)
+        else:
+            cmd_action = CmdAction(cmd, cwd=os.path.abspath(self.path),
+                    env=env)
+        self.actions = [
+                cmd_action,
+                ]

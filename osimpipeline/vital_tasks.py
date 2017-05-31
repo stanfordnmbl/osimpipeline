@@ -4,6 +4,8 @@ import task
 from doit.action import CmdAction
 
 class TaskCopyGenericModelToResults(task.StudyTask):
+    """Copy the generic model and the reserve actuators file to the results
+    directory."""
     REGISTRY = []
     def __init__(self, study):
         super(TaskCopyGenericModelToResults, self).__init__(study)
@@ -12,6 +14,10 @@ class TaskCopyGenericModelToResults(task.StudyTask):
         self.add_action(
                 [study.source_generic_model_fpath],
                 [study.generic_model_fpath],
+                self.copy_file)
+        self.add_action(
+                [study.source_reserve_actuators_fpath],
+                [study.reserve_actuators_fpath],
                 self.copy_file)
 
 class TaskCopyMotionCaptureData(task.SubjectTask):
@@ -458,7 +464,6 @@ class TaskGRFGaitLandmarks(task.TrialTask):
                 **self.kwargs)
         pl.gcf().savefig(target[0])
 
-
 class TaskIKSetup(task.TrialTask):
     REGISTRY = []
     def __init__(self, trial):
@@ -530,7 +535,8 @@ class TaskIKSetup(task.TrialTask):
             f.write(content)
 
 
-class TaskIK(task.ToolTask):
+class TaskIK(task.ToolTrialTask):
+    REGISTRY = []
     def __init__(self, trial, ik_setup_task):
         super(TaskIK, self).__init__(trial, 'ik')
         self.doc = "Run OpenSim's Inverse Kinematics tool."
@@ -543,8 +549,4 @@ class TaskIK(task.ToolTask):
                     self.study.name, trial.id)),
                 os.path.join(self.path, 'ik_model_marker_locations.sto'),
                 ]
-
-
-
-
 

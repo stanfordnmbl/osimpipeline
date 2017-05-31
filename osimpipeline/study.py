@@ -16,9 +16,21 @@ class Cycle(object):
         self.study = trial.study
         self.num = num
         self.name = 'cycle%02i' % num
+        self.gait_landmarks = gait_landmarks
         self.metadata = metadata
         self.rel_path = os.path.join(trial.rel_path, self.name)
         self.id = '_'.join([trial.id, self.name])
+        self.results_exp_path = os.path.join(self.study.config['results_path'],
+                'experiments', self.rel_path)
+
+        self.tasks = list()
+
+    def add_task(self, cls, *args, **kwargs):
+        """Add a CycleTask for this cycle.
+        """
+        task = cls(self, *args, **kwargs)
+        self.tasks.append(task)
+        return task
 
 class Trial(object):
     def __init__(self, condition, num, metadata=None,
@@ -89,6 +101,7 @@ class TreadmillTrial(Trial):
             left_strikes=None, left_toeoffs=None,
             metadata=None,
             omit_trial_dir=False,
+            use_cycle_type=None,
             ):
         super(TreadmillTrial, self).__init__(condition, num, metadata=metadata,
                 omit_trial_dir=omit_trial_dir)
@@ -109,10 +122,16 @@ class TreadmillTrial(Trial):
                         right_strike=start,
                         right_toeoff=right_toeoffs[icycle],
                         )
-                self._add_cycle(cycle_num, gait_landmarks)
+                self._add_cycle(cycle_num, gait_landmarks,
+                        use_type=use_cycle_type)
 
     def _add_cycle(self, *args, **kwargs):
-        cycle = Cycle(self, *args, **kwargs)
+        cycle_type = Cycle 
+        if 'use_type' in kwargs:
+            use_type = kwargs.pop('use_type')
+            if use_type != None:
+                cycle_type = use_type
+        cycle = cycle_type(self, *args, **kwargs)
         assert not self.contains_cycle(cycle.num)
         self.cycles.append(cycle)
         return cycle
@@ -170,7 +189,9 @@ class Condition(object):
         self.trials.append(trial)
         return trial
     def add_treadmill_trial(self, *args, **kwargs):
-        """
+        """To specify a specific TreadmillTrial class to use for creating this
+        trial, use keyword argument `use_type`.
+
         Examples
         --------
         
@@ -252,9 +273,10 @@ class Study(object):
     repository, since different users might choose different values for these
     settings.
     """
-    def __init__(self, name, generic_model_fpath):
+    def __init__(self, name, generic_model_fpath, reserve_actuators_fpath):
         self.name = name
         self.source_generic_model_fpath = generic_model_fpath
+        self.source_reserve_actuators_fpath = reserve_actuators_fpath
         try:
             with open('config.yaml', 'r') as f:
                 self.config = yaml.load(f)
@@ -265,6 +287,8 @@ class Study(object):
         self.generic_model_fpath = os.path.join(self.config['results_path'],
                 'generic_model.osim')
                 #os.path.basename(generic_model_fpath))
+        self.reserve_actuators_fpath = os.path.join(self.config['results_path'],
+                'reserve_actuators.xml')
 
         self.subjects = list() 
         self.tasks = list()
