@@ -478,6 +478,7 @@ class TaskIKSetup(task.TrialTask):
                 'tasks.xml')
         self.results_tasks_fpath = os.path.join(self.results_path, 
                 os.path.basename(self.source_tasks_fpath))
+        self.file_dep.append(self.trial.marker_trajectories_fpath)
         if not os.path.exists(self.source_tasks_fpath):
             # The user does not yet have a tasks.xml in place; fill out the
             # template.
@@ -516,7 +517,6 @@ class TaskIKSetup(task.TrialTask):
                 f.write(content)
 
     def fill_setup_template(self, file_dep, target):
-        ik_dir = os.path.split(target[0])[0]
         with open(file_dep[0]) as ft:
             content = ft.read()
             content = content.replace('@STUDYNAME@', self.study.name)
@@ -534,6 +534,72 @@ class TaskIKSetup(task.TrialTask):
         with open(target[0], 'w') as f:
             f.write(content)
 
+class TaskInverseDynamicsSetup(task.TrialTask):
+    REGISTRY = []
+    def __init__(self, trial):
+        super(TaskInverseDynamicsSetup, self).__init__(trial)
+        self.name = '%s_id_setup' % trial.id
+        self.doc = 'Create a setup file for Inverse Dynamics.'
+        self.results_path = os.path.join(trial.results_exp_path, 'id')
+        self.rel_kinematics_file = os.path.relpath(
+                os.path.join(trial.results_exp_path, 'ik', 
+                    '%s_%s_ik_solution.mot' % (
+                        self.study.name, trial.id)),
+                self.results_path)
+        self.external_loads_fpath = os.path.join(self.results_path,
+                'external_loads.xml')
+
+        # Used to compute initial and final times.
+        self.file_dep.append(self.trial.marker_trajectories_fpath)
+
+        # setup.xml.
+        # ----------
+        self.add_action(
+                ['templates/id/setup.xml'],
+                [os.path.join(trial.results_exp_path, 'id', 'setup.xml')],
+                self.fill_setup_template,
+                )
+
+        # external_loads.xml.
+        # -------------------
+        self.add_action(
+                ['templates/id/external_loads.xml'],
+                [self.external_loads_fpath],
+                self.fill_external_loads_template)
+
+    def fill_setup_template(self, file_dep, target):
+        from perimysium.dataman import TRCFile
+        with open(file_dep[0]) as ft:
+            content = ft.read()
+            content = content.replace('@STUDYNAME@', self.study.name)
+            content = content.replace('@NAME@', self.trial.id)
+            content = content.replace('@MODEL@', os.path.relpath(
+                self.subject.scaled_model_fpath, self.results_path))
+            content = content.replace('@COORDINATES_FILE@',
+                    self.rel_kinematics_file)
+
+            trc = TRCFile(self.trial.marker_trajectories_fpath)
+            content = content.replace('@INIT_TIME@', str(trc.time[0]))
+            content = content.replace('@FINAL_TIME@', str(trc.time[-1]))
+        
+        if not os.path.exists(self.results_path):
+            os.makedirs(self.results_path)
+        with open(target[0], 'w') as f:
+            f.write(content)
+
+    def fill_external_loads_template(self, file_dep, target):
+        so_dir = os.path.split(target[0])[0]
+        with open(file_dep[0]) as ft:
+            content = ft.read()
+            content = content.replace('@STUDYNAME@', self.study.name)
+            content = content.replace('@NAME@', self.trial.id)
+            content = content.replace('@KINEMATICS_FILE@',
+                    self.rel_kinematics_file)
+
+        if not os.path.exists(self.results_path):
+            os.makedirs(self.results_path)
+        with open(target[0], 'w') as f:
+            f.write(content)
 
 class TaskIK(task.ToolTrialTask):
     REGISTRY = []
@@ -545,9 +611,23 @@ class TaskIK(task.ToolTrialTask):
         self.file_dep += [
                 self.subject.scaled_model_fpath,
                 ik_setup_task.results_tasks_fpath,
+                self.trial.marker_trajectories_fpath,
                 ]
         self.targets += [
                 self.solution_fpath,
                 os.path.join(self.path, 'ik_model_marker_locations.sto'),
                 ]
 
+class TaskInverseDynamics(task.ToolTrialTask):
+    REGISTRY = []
+    def __init__(self, trial, id_setup_task):
+        super(TaskInverseDynamics, self).__init__(trial, 'id')
+        self.doc = "Run OpenSim's Inverse Dynamics tool."
+        self.solution_fpath = os.path.join(self.path, 'results',
+                '%s_%s_id_solution.sto' % (self.study.name, trial.id))
+        self.file_dep += [
+                self.subject.scaled_model_fpath,
+                ]
+        self.targets += [
+                self.solution_fpath,
+                ]
