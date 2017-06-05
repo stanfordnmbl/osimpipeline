@@ -111,11 +111,23 @@ class ToolTrialTask(TrialTask):
                 '%s/setup.xml' % self.path
                 ]
 
+        #if env == None:
+        #    from sys import platform
+        #    if platform == 'win32':
+        #        env = {'PATH':
+        #                os.path.join(self.study.config['opensim_home'], 'bin')}
+        #    elif platform == 'darwin': # mac
+        #        env = {'DYLD_LIBRARY_PATH':
+        #                os.path.join(self.study.config['opensim_home'], 'lib')}
+        #    else:
+        #        env = {'LD_LIBRARY_PATH': 
+        #                os.path.join(self.study.config['opensim_home'], 'lib')}
+
         if exec_name == None:
             exec_name = tool_folder
         if cmd == None:
             cmd_action = CmdAction('"' + os.path.join(
-                self.study.config['opensim_home'],'bin',exec_name)
+                self.study.config['opensim_home'], 'bin', exec_name)
                 + '" -S setup.xml',
                 cwd=os.path.abspath(self.path),
                 env=env)
@@ -135,6 +147,18 @@ class ToolCycleTask(CycleTask):
         self.file_dep = [
                 '%s/setup.xml' % self.path
                 ]
+
+        #if env == None:
+        #    from sys import platform
+        #    if platform == 'win32':
+        #        env = {'PATH':
+        #                os.path.join(self.study.config['opensim_home'], 'bin')}
+        #    elif platform == 'darwin': # mac
+        #        env = {'DYLD_LIBRARY_PATH':
+        #                os.path.join(self.study.config['opensim_home'], 'lib')}
+        #    else:
+        #        env = {'LD_LIBRARY_PATH': 
+        #                os.path.join(self.study.config['opensim_home'], 'lib')}
 
         if exec_name == None:
             exec_name = tool_folder
