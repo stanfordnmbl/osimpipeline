@@ -534,6 +534,23 @@ class TaskIKSetup(task.TrialTask):
         with open(target[0], 'w') as f:
             f.write(content)
 
+class TaskIK(task.ToolTrialTask):
+    REGISTRY = []
+    def __init__(self, trial, ik_setup_task):
+        super(TaskIK, self).__init__(trial, 'ik')
+        self.doc = "Run OpenSim's Inverse Kinematics tool."
+        self.solution_fpath = os.path.join(self.path,
+                '%s_%s_ik_solution.mot' % (self.study.name, trial.id))
+        self.file_dep += [
+                self.subject.scaled_model_fpath,
+                ik_setup_task.results_tasks_fpath,
+                self.trial.marker_trajectories_fpath,
+                ]
+        self.targets += [
+                self.solution_fpath,
+                os.path.join(self.path, 'ik_model_marker_locations.sto'),
+                ]
+
 class TaskInverseDynamicsSetup(task.TrialTask):
     REGISTRY = []
     def __init__(self, trial):
@@ -600,23 +617,6 @@ class TaskInverseDynamicsSetup(task.TrialTask):
             os.makedirs(self.results_path)
         with open(target[0], 'w') as f:
             f.write(content)
-
-class TaskIK(task.ToolTrialTask):
-    REGISTRY = []
-    def __init__(self, trial, ik_setup_task):
-        super(TaskIK, self).__init__(trial, 'ik')
-        self.doc = "Run OpenSim's Inverse Kinematics tool."
-        self.solution_fpath = os.path.join(self.path,
-                '%s_%s_ik_solution.mot' % (self.study.name, trial.id))
-        self.file_dep += [
-                self.subject.scaled_model_fpath,
-                ik_setup_task.results_tasks_fpath,
-                self.trial.marker_trajectories_fpath,
-                ]
-        self.targets += [
-                self.solution_fpath,
-                os.path.join(self.path, 'ik_model_marker_locations.sto'),
-                ]
 
 class TaskInverseDynamics(task.ToolTrialTask):
     REGISTRY = []
