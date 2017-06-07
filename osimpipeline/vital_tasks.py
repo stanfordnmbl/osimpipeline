@@ -627,6 +627,9 @@ class TaskInverseDynamics(task.ToolTrialTask):
                 '%s_%s_id_solution.sto' % (self.study.name, trial.id))
         self.file_dep += [
                 self.subject.scaled_model_fpath,
+                os.path.join(self.trial.results_exp_path, 'ik',
+                    '%s_%s_ik_solution.mot' % (self.study.name, trial.id)),
+                self.trial.ground_reaction_fpath,
                 ]
         self.targets += [
                 self.solution_fpath,
