@@ -284,12 +284,16 @@ class Study(object):
     
       - motion_capture_data_path
       - results_path
+      - analysis_path
+      - opensim_home
 
     An example `config.yaml` may look like the following:
 
     ```
     motion_capture_data_path: /home/fred/data
     results_path: /home/fred/results
+    analysis_path: /home/fred/analysis
+    opensim_home: /home/fred/opensim-3.3
     ```
 
     The paths do not need to be absolute; they could also be relative. It is
@@ -307,6 +311,11 @@ class Study(object):
         except Exception as e:
             raise Exception(e.message +
                     "\nMake sure there is a config.yaml next to dodo.py")
+        if not 'results_path' in self.config:
+            self.config['results_path'] = '../results'
+        if not 'analysis_path' in self.config:
+            self.config['analysis_path'] = '../analysis'
+
         # The copy in the results directory.
         self.generic_model_fpath = os.path.join(self.config['results_path'],
                 'generic_model.osim')
