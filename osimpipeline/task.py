@@ -23,7 +23,7 @@ class Task(object):
         # Add this specific instance to the class variable REGISTRY.
         self.REGISTRY.append(self)
 
-    def add_action(self, file_dep, target, member_function):
+    def add_action(self, file_dep, target, member_function, *args_to_member):
         """A convenient way to add an action to your task: file dependencies,
         targets, and the action's member function are grouped together. Call
         this within a derived class. The `file_dep` and `target` arguments are
@@ -37,8 +37,10 @@ class Task(object):
         Make sure the `target` option is not named `targets`; python-doit tries
         to be smart about actions with a `targets` parameter, and overrides the
         behavior we want here.
-        
 
+        You can use `args_to_member` to pass additional arguments to the
+        `member_function`.
+        
         The arguments `file_dep` and `target` should be lists or dicts.
 
         """
@@ -50,7 +52,10 @@ class Task(object):
             self.targets += target
         else:
             self.targets += target.values()
-        self.actions.append((member_function, [file_dep, target]))
+        args = [file_dep, target]
+        if len(args_to_member):
+            args += args_to_member
+        self.actions.append((member_function, args))
 
     def copy_file(self, file_dep, target):
         """This can be used as the action for derived classes that want to copy
