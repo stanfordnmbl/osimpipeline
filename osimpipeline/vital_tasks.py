@@ -490,11 +490,43 @@ class TaskIKSetup(task.TrialTask):
 
         # setup.xml.
         # ----------
+        if trial.type == 'overground':
+            self.init_time = 0.0
+            self.final_time = self.final_motion_capture_time()
+        elif trial.type == 'treadmill':
+            cycles = trial.cycles
+            # TODO: make generic to any sets of cycles given, this currently
+            #       requires that gait cycles be consecutive
+            if cycles:
+                first_cycle = cycles[0]
+                last_cycle = cycles[-1]
+                self.init_time = first_cycle.cycle_start
+                self.final_time = last_cycle.cycle_end
+            else:
+                raise Exception('TaskIKSetup: no gait cycles have been ' 
+                                'specified for this treadmill trial')
+
         self.add_action(
-                ['templates/ik/setup.xml'],
-                [os.path.join(trial.results_exp_path, 'ik', 'setup.xml')],
-                self.fill_setup_template,
-                )
+            ['templates/ik/setup.xml'],
+            [os.path.join(trial.results_exp_path, 'ik', 'setup.xml')],
+            self.fill_setup_template,
+            )
+
+        # elif trial.type == 'treadmill':
+        #     for cycle in trial.cycles:
+        #         self.init_time = cycle.cycle_start
+        #         self.final_time = cycle.cycle_end
+        #         self.add_action(
+        #             ['templates/ik/setup.xml'],
+        #             [os.path.join(trial.results_exp_path, 'ik', cycle.name 
+        #                 ,'setup.xml')],
+        #             self.fill_setup_template,
+        #             )     
+
+    def final_motion_capture_time(self):
+        mocap_data = loadtxt(trial.marker_trajectories_fpath, skiprows=6)
+        # Last row, second column.
+        return mocap_data[-1][1]
 
     def fill_tasks_template(self, file_dep, target):
         if not os.path.exists(target[0]):
@@ -520,7 +552,8 @@ class TaskIKSetup(task.TrialTask):
                 self.results_tasks_fpath, self.results_path))
             content = content.replace('@MARKER_FILE@', os.path.relpath(
                 self.trial.marker_trajectories_fpath, self.results_path))
-            # TODO content = content.replace('@FINALTIME@', '')
+            content = content.replace('@INIT_TIME@', '%.4f' % self.init_time)
+            content = content.replace('@FINAL_TIME@', '%.4f' % self.final_time)
         
         if not os.path.exists(self.results_path):
             os.makedirs(self.results_path)
@@ -542,7 +575,133 @@ class TaskIK(task.ToolTask):
                 os.path.join(self.path, 'ik_model_marker_locations.sto'),
                 ]
 
+class TaskRRAModelSetup(task.TrialTask):
+    REGISTRY = []
+    def __init__(self,trial,adjust_body='torso'):
+        super(TaskRRAModelSetup, self).__init__(trial)
+        self.name = '%s_rramodel_setup' % trial.id
+        self.doc = "Run OpenSim's Residual Reduction Algorithm tool to create an adjusted model."
+        self.results_path = os.path.join(trial.results_exp_path, 'rramodel')
+        self.doit_path = self.study.config['doit_path']
+        self.rra_actuators = self.study.config['rra_actuators']
+        self.adjust_body = adjust_body
 
+        # external_loads.xml
+        # ------------------
+        self.source_extloads_fpath = os.path.join(trial.rel_path, 'rramodel', 
+                'external_loads.xml')
+        self.results_extloads_fpath = os.path.join(self.results_path,
+                os.path.basename(self.source_extloads_fpath))
+        if not os.path.exists(self.source_extloads_fpath):
+            # The user does not yet have a external_loads.xml in place; fill 
+            # out the template.
+            self.add_action(
+                ['templates/rramodel/external_loads.xml'],
+                [self.source_extloads_fpath],
+                self.fill_external_loads_template)
+            self.actions.append((self.copy_file,
+                [[self.source_extloads_fpath], [self.results_extloads_fpath]]))
+        else:
+            # We have already filled out the template tasks file,
+            # and the user might have made changes to it.
+            self.add_action(
+                    [self.source_extloads_fpath],
+                    [self.results_extloads_fpath],
+                    self.copy_file)
 
+        # tasks.xml.
+        # ----------
+        self.source_tasks_fpath = os.path.join(trial.rel_path, 'rramodel',
+                'tasks.xml')
+        self.results_tasks_fpath = os.path.join(self.results_path, 
+                os.path.basename(self.source_tasks_fpath))
+        if not os.path.exists(self.source_tasks_fpath):
+            # The user does not yet have a tasks.xml in place; fill out the
+            # template.
+            self.add_action(
+                    ['templates/rramodel/tasks.xml'],
+                    [self.source_tasks_fpath],
+                    self.fill_tasks_template)
+            self.actions.append((self.copy_file,
+                [[self.source_tasks_fpath], [self.results_tasks_fpath]]))
+        else:
+            # We have already filled out the template tasks file,
+            # and the user might have made changes to it.
+            self.add_action(
+                    [self.source_tasks_fpath],
+                    [self.results_tasks_fpath],
+                    self.copy_file)
 
+        # setup.xml.
+        # ----------
+        if trial.type == 'overground':
+            self.init_time = 0.0
+            self.final_time = self.final_motion_capture_time()
+        elif trial.type == 'treadmill':
+            cycles = trial.cycles
+            # TODO: make generic to any sets of cycles given, this currently
+            #       requires that gait cycles be consecutive
+            if cycles:
+                first_cycle = cycles[0]
+                last_cycle = cycles[-1]
+                self.init_time = first_cycle.cycle_start
+                self.final_time = last_cycle.cycle_end
+            else:
+                raise Exception('TaskRRAModelSetup: no gait cycles have been ' 
+                                'specified for this treadmill trial')
 
+        self.add_action(
+            ['templates/rramodel/setup.xml'],
+            [os.path.join(trial.results_exp_path, 'rramodel', 'setup.xml')],
+            self.fill_setup_template,
+            )
+
+    def final_motion_capture_time(self):
+        mocap_data = loadtxt(trial.marker_trajectories_fpath, skiprows=6)
+        # Last row, second column.
+        return mocap_data[-1][1]
+
+    def fill_external_loads_template(self, file_dep, target):
+        rramodel_dir = os.path.split(target[0])[0]
+        with open(file_dep[0]) as ft:
+            content = ft.read()
+            content = content.replace('@NAME@', self.trial.id)
+
+        if not os.path.exists(rramodel_dir): os.makedirs(rramodel_dir)
+        with open(target[0], 'w') as f:
+            f.write(content)
+
+    def fill_tasks_template(self, file_dep, target):
+        if not os.path.exists(target[0]):
+            rramodel_dir = os.path.split(target[0])[0]
+            with open(file_dep[0]) as ft:
+                content = ft.read()
+                content = content.replace('@STUDYNAME@', self.study.name)
+                content = content.replace('@NAME@', self.trial.id)
+
+            if not os.path.exists(rramodel_dir): os.makedirs(rramodel_dir)
+            with open(target[0], 'w') as f:
+                f.write(content)
+
+    def fill_setup_template(self, file_dep, target):
+        with open(file_dep[0]) as ft:
+            content = ft.read()
+            content = content.replace('@NAME@', self.trial.id)
+            content = content.replace('@MODEL@', 
+                                      self.subject.scaled_model_fpath)
+            content = content.replace('@INIT_TIME@', '%.4f' % self.init_time)
+            content = content.replace('@FINAL_TIME@', '%.4f' % self.final_time)
+            
+            rra_act = os.path.join(self.doit_path, self.rra_actuators)
+            res_act = '../../%s_residual_actuators.xml' % self.subject.name
+            force_set_files = '%s %s' % (rra_act, res_act)
+            content = content.replace('@FORCESETFILES@', force_set_files)
+            content = content.replace('@ADJUSTCOMBODY@', self.adjust_body)
+            # We always compute the mass change, but we just don't always USE
+            # the resulting model.
+            content = content.replace('@MODELADJUSTED@',
+                   self.subject.name  + "_adjusted.osim")
+        
+
+        with open(target[0], 'w') as f:
+            f.write(content)

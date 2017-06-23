@@ -19,6 +19,8 @@ class Cycle(object):
         self.metadata = metadata
         self.rel_path = os.path.join(trial.rel_path, self.name)
         self.id = '_'.join([trial.id, self.name])
+        self.cycle_start = gait_landmarks.cycle_start
+        self.cycle_end = gait_landmarks.cycle_end
 
 class Trial(object):
     def __init__(self, condition, num, metadata=None,
@@ -67,9 +69,10 @@ class Trial(object):
 
 class OvergroundTrial(Trial):
     """Overground trials have just one cycle."""
-    def __init__(self, condition, num, metadata=None):
+    def __init__(self, condition, num, metadata=None,omit_trial_dir=False):
         super(OvergroundTrial, self).__init__(condition, num,
-                metadata=metadata)
+                metadata=metadata,omit_trial_dir=omit_trial_dir)
+        self.type = 'overground'
                 
 class TreadmillTrial(Trial):
     """Treadmill trials may have multiple cycles. If a condition has only one
@@ -92,9 +95,11 @@ class TreadmillTrial(Trial):
             ):
         super(TreadmillTrial, self).__init__(condition, num, metadata=metadata,
                 omit_trial_dir=omit_trial_dir)
+        self.type = 'treadmill'
 
         # Loop through provided times and create Cycles.
-        # TODO this code may not be sufficiently generic to go here.
+        # TODOs: this code may not be sufficiently generic to go here.
+        #        error if no cycle times given
         if right_strikes:
             for icycle in range(len(right_strikes) - 1):
                 cycle_num = icycle + 1
@@ -269,7 +274,7 @@ class Study(object):
         self.subjects = list() 
         self.tasks = list()
 
-        self.add_task(vital_tasks.TaskCopyGenericModelToResults)
+        #self.add_task(vital_tasks.TaskCopyGenericModelToResults)
 
     def add_subject(self, *args, **kwargs):
         subj = Subject(self, *args, **kwargs)
