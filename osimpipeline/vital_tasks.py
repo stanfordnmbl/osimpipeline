@@ -374,12 +374,12 @@ class TaskScale(task.SubjectTask):
                 if (not name in trc_names) or (not markerset.contains(name)):
                     if task.getConcreteClassName() != 'IKCoordinateTask':
                         markers_without_data.append(name)
+            del name
 
         if markers_without_data != [] and not self.ignore_nonexistant_data:
             raise Exception('There are IK tasks for the following markers, '
                     'yet data does not exist for them: {}'.format(
                         markers_without_data))
-        del name
 
         # Markers for which there is data but they're not specified elsewhere.
         # --------------------------------------------------------------------
