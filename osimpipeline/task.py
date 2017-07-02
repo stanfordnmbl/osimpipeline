@@ -3,7 +3,7 @@ These abstract base classes define a 'task' for python-doit.
 """
 
 import os
-
+from numpy import loadtxt
 from doit.action import CmdAction
 
 class Task(object):
@@ -23,7 +23,8 @@ class Task(object):
         # Add this specific instance to the class variable REGISTRY.
         self.REGISTRY.append(self)
 
-    def add_action(self, file_dep, target, member_function):
+    def add_action(self, file_dep, target, member_function, *args_to_member,
+        **kwargs_to_member):
         """A convenient way to add an action to your task: file dependencies,
         targets, and the action's member function are grouped together. Call
         this within a derived class. The `file_dep` and `target` arguments are
@@ -31,6 +32,7 @@ class Task(object):
         `member_function` should look like the following:
 
         ```
+
         def member_function(self, file_dep, target):
         ```
         
@@ -50,7 +52,14 @@ class Task(object):
             self.targets += target
         else:
             self.targets += target.values()
-        self.actions.append((member_function, [file_dep, target]))
+        args = [file_dep, target]
+        if len(args_to_member):
+            args += args_to_member
+        
+        if bool(kwargs_to_member):
+            self.actions.append((member_function, args, kwargs_to_member))
+        else:
+            self.actions.append((member_function, args))
 
     def copy_file(self, file_dep, target):
         """This can be used as the action for derived classes that want to copy
@@ -96,29 +105,196 @@ class TrialTask(SubjectTask):
         super(TrialTask, self).__init__(trial.subject)
         self.trial = trial
 
-class ToolTask(TrialTask):
-    def __init__(self, trial, tool_folder, exec_name=None, cmd=None, env=None):
-        super(ToolTask, self).__init__(trial)
-        self.name = '%s_%s' % (trial.id, tool_folder)
-        self.path = os.path.join(trial.results_exp_path, tool_folder)
+# TODOs: find a better name for gait_cycles
+#        use boolean instead of string flag
+class SetupTask(TrialTask):
+    def __init__(self, tool, trial, 
+                 model_to_adjust=None, 
+                 adjusted_model=None,
+                 gait_cycles='concatenated'):
+        super(SetupTask, self).__init__(trial)
+        self.tool = tool
+        self.trial = trial
+        self.name = '%s_%s_setup' % (trial.id, self.tool)
+        self.tool_path = os.path.join(trial.results_exp_path, self.tool)
+        self.doit_path = self.study.config['doit_path']
+        self.gait_cycles=gait_cycles
 
+        # Specify model to be adjusted by RRA
+        if not model_to_adjust:
+             self.model_to_adjust = '%s.osim' % self.subject.name
+        else:
+            self.model_to_adjust = model_to_adjust
+
+        self.model_to_adjust_fpath = os.path.join(
+            self.subject.results_exp_path, self.model_to_adjust)
+
+        # Specify adjusted model
+        if not adjusted_model:
+            self.adjusted_model = '%s_adjusted.osim' % self.subject.name
+        else:
+            self.adjusted_model = adjusted_model
+
+        self.adjusted_model_fpath = os.path.join(trial.results_exp_path,
+            'rramodel', self.adjusted_model)
+
+        # Generate setup file(s) based on trial type, and whether not to split 
+        # up multiple gait cycles if they exist
+        if trial.type == 'overground':
+            # TODO: update setup file generation for overground case
+            self.add_tool_dir()
+
+        elif trial.type == 'treadmill':
+            # Create setup files for each individual gait cycle
+            if gait_cycles=='separate':
+                self.add_cycle_dirs(trial.cycles)
+                for cycle in trial.cycles:
+                    self.generate_setup_file(cycle)
+
+            # Create a setup file with all gait cycles concatenated together
+            elif gait_cycles=='concatenated':
+                self.add_tool_dir()
+                first_cycle = trial.cycles[0]
+                last_cycle = trial.cycles[-1]
+                self.init_time = first_cycle.cycle_start
+                self.final_time = last_cycle.cycle_end
+                self.generate_setup_file()
+
+            else:
+                raise Exception("SetupTask: %s is not a valid gait cycle "
+                    "keyword, please choose 'separate' or 'concatenated'.")
+
+    def add_tool_dir(self):
+        if not os.path.exists(self.tool_path): os.makedirs(self.tool_path)
+
+    def add_cycle_dirs(self, cycles):
+        self.add_tool_dir()
+        for cycle in cycles:
+            cycle_path = os.path.join(self.tool_path, cycle.name)
+            if not os.path.exists(cycle_path): os.makedirs(cycle_path)
+
+    def fill_setup_template(self):
+        raise NotImplementedError()
+
+    def fill_external_loads_template(self, file_dep, target):
+        with open(file_dep[0]) as ft:
+            content = ft.read()
+            content = content.replace('@STUDYNAME@', self.study.name)
+            content = content.replace('@NAME@', self.trial.id)
+
+        with open(target[0], 'w') as f:
+            f.write(content)
+
+    def copy_over_external_loads(self):
+        self.source_extloads_fpath = os.path.join(self.trial.rel_path, 
+                self.tool, 'external_loads.xml')
+        self.results_extloads_fpath = os.path.join(self.tool_path,
+                os.path.basename(self.source_extloads_fpath))
+        if not os.path.exists(self.source_extloads_fpath):
+            # The user does not yet have a external_loads.xml in place; fill 
+            # out the template.
+            self.add_action(
+                ['templates/%s/external_loads.xml' % self.tool],
+                [self.source_extloads_fpath],
+                self.fill_external_loads_template)
+            self.actions.append((self.copy_file,
+                [[self.source_extloads_fpath], [self.results_extloads_fpath]]))
+        else:
+            # We have already filled out the template tasks file,
+            # and the user might have made changes to it.
+            self.add_action(
+                    [self.source_extloads_fpath],
+                    [self.results_extloads_fpath],
+                    self.copy_file)
+
+    def fill_tasks_template(self, file_dep, target):
+        # Don't overwrite existing tasks file
+        if not os.path.exists(target[0]):
+            with open(file_dep[0]) as ft:
+                content = ft.read()
+                content = content.replace('@STUDYNAME@', self.study.name)
+                content = content.replace('@NAME@', self.trial.id)
+    
+            with open(target[0], 'w') as f:
+                f.write(content)
+
+    def copy_over_tasks(self):
+        self.source_tasks_fpath = os.path.join(self.trial.rel_path, self.tool,
+                'tasks.xml')
+        self.results_tasks_fpath = os.path.join(self.tool_path, 
+                os.path.basename(self.source_tasks_fpath))
+        if not os.path.exists(self.source_tasks_fpath):
+            # The user does not yet have a tasks.xml in place; fill out the
+            # template.
+            self.add_action(
+                    ['templates/%s/tasks.xml' % self.tool],
+                    [self.source_tasks_fpath],
+                    self.fill_tasks_template)
+            self.actions.append((self.copy_file,
+                [[self.source_tasks_fpath], [self.results_tasks_fpath]]))
+        else:
+            # We have already filled out the template tasks file,
+            # and the user might have made changes to it.
+            self.add_action(
+                    [self.source_tasks_fpath],
+                    [self.results_tasks_fpath],
+                    self.copy_file)
+
+    def generate_setup_file(self, cycle=None):
+        if cycle:
+            self.results_setup_fpath = os.path.join(self.tool_path, 
+                cycle.name, 'setup.xml')
+            self.add_action(
+                ['templates/%s/setup.xml' % self.tool],
+                [self.results_setup_fpath],
+                self.fill_setup_template,
+                init_time=cycle.cycle_start,
+                final_time=cycle.cycle_end
+                )
+        else:
+            self.results_setup_fpath = os.path.join(self.tool_path,'setup.xml')
+            self.add_action(
+                    ['templates/%s/setup.xml' % self.tool],
+                    [self.results_setup_fpath],
+                    self.fill_setup_template,  
+                    init_time=self.init_time,
+                    final_time=self.final_time,      
+                    )
+
+class ToolTask(TrialTask):
+    def __init__(self, tool_folder, trial, cycle=None,
+                 exec_name=None, cmd=None, env=None):
+        super(ToolTask, self).__init__(trial)
+        self.tool_folder=tool_folder
+        self.exec_name=exec_name
+        self.cmd=cmd
+        self.env=env
+
+        if cycle:
+            self.name = '%s_%s_%s' % (trial.id, tool_folder, cycle.name)
+            self.path = os.path.join(trial.results_exp_path, tool_folder, cycle.name)
+            self.run_setup_file()
+        else:
+            self.name = '%s_%s' % (trial.id, tool_folder)
+            self.path = os.path.join(trial.results_exp_path, tool_folder)
+            self.run_setup_file()
+
+    def run_setup_file(self):
         self.file_dep = [
                 '%s/setup.xml' % self.path
                 ]
 
-        if exec_name == None:
-            exec_name = tool_folder
-        if cmd == None:
+        if self.exec_name == None:
+            self.exec_name = self.tool_folder
+        if self.cmd == None:
             cmd_action = CmdAction('"' + os.path.join(
-                self.study.config['opensim_home'],'bin',exec_name)
+                self.study.config['opensim_home'],'bin',self.exec_name)
                 + '" -S setup.xml',
                 cwd=os.path.abspath(self.path),
-                env=env)
+                env=self.env)
         else:
-            cmd_action = CmdAction(cmd, cwd=os.path.abspath(self.path),
-                    env=env)
+            cmd_action = CmdAction(self.cmd, cwd=os.path.abspath(self.path),
+                    env=self.env)
         self.actions = [
                 cmd_action,
                 ]
-
-

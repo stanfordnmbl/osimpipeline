@@ -17,10 +17,22 @@ class Cycle(object):
         self.num = num
         self.name = 'cycle%02i' % num
         self.metadata = metadata
-        self.rel_path = os.path.join(trial.rel_path, self.name)
         self.id = '_'.join([trial.id, self.name])
         self.cycle_start = gait_landmarks.cycle_start
         self.cycle_end = gait_landmarks.cycle_end
+
+        self.tasks = list()
+
+    def add_task(self, cls, trial, *args, **kwargs):
+        """Add a TrialTask for this cycle.
+            
+           TrialTasks for cycles can only be created
+           by Trial objects. 
+        """
+        kwargs['cycle']=self
+        task = cls(trial, *args, **kwargs)
+        self.tasks.append(task)
+        return task
 
 class Trial(object):
     def __init__(self, condition, num, metadata=None,
@@ -61,11 +73,17 @@ class Trial(object):
         # TODO self.add_task(vital_tasks.TaskGRFGaitLandmarks)
 
     def add_task(self, cls, *args, **kwargs):
-        """Add a TrialTask for this trial
+        """Add a TrialTask for this trial.
         """
         task = cls(self, *args, **kwargs)
         self.tasks.append(task)
         return task
+
+    def add_task_cycles(self, cls, *args, **kwargs):
+        """Add a CycleTask for each cycle in this trial.
+        """
+        for cycle in self.cycles:
+            cycle.add_task(cls, self, *args, **kwargs)
 
 class OvergroundTrial(Trial):
     """Overground trials have just one cycle."""
@@ -115,6 +133,9 @@ class TreadmillTrial(Trial):
                         right_toeoff=right_toeoffs[icycle],
                         )
                 self._add_cycle(cycle_num, gait_landmarks)
+        else:
+            raise Exception('TreadmillTrial: please provide gait landmarks '
+                            'for at least one gait cycles')
 
     def _add_cycle(self, *args, **kwargs):
         cycle = Cycle(self, *args, **kwargs)
@@ -146,6 +167,8 @@ class Condition(object):
         self.name = name
         self.metadata = metadata
         self.rel_path = os.path.join(self.parent.rel_path, name)
+        self.results_exp_path = os.path.join(self.study.config['results_path'],
+            'experiments', self.rel_path)
         self.conditions = list()
         self.trials = list()
     def add_condition(self, *args, **kwargs):
@@ -209,8 +232,14 @@ class Subject(object):
         # Relative path to the subject folder; can be used for the source
         # directory or the results directory.
         self.rel_path = self.name
-        self.scaled_model_fpath = os.path.join(study.config['results_path'],
-                'experiments', self.rel_path, '%s.osim' % self.name)
+        self.results_exp_path = os.path.join(self.study.config['results_path'],
+            'experiments', self.rel_path)
+        self.model_name = self.name
+        self.scaled_model_fpath = os.path.join(self.results_exp_path, '%s.osim' % self.model_name)
+        # Model used by RRA to create adjusted model. By default, this is set 
+        # to the scaled model, but it can be set to a different model if the 
+        # scaled model must be modifed (adding a backpack, etc.)
+        self.model_to_adjust_fpath = self.scaled_model_fpath
         self.conditions = list()
         self.tasks = list()
     def add_condition(self, *args, **kwargs):
