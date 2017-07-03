@@ -108,13 +108,23 @@ class TrialTask(SubjectTask):
 class SetupTask(TrialTask):
     def __init__(self, tool, trial, 
                  model_to_adjust=None, 
-                 adjusted_model=None):
+                 adjusted_model=None,
+                 gait_cycles='concatenated'):
         super(SetupTask, self).__init__(trial)
         self.tool = tool
         self.trial = trial
         self.name = '%s_%s_setup' % (trial.id, self.tool)
         self.tool_path = os.path.join(trial.results_exp_path, self.tool)
         self.doit_path = self.study.config['doit_path']
+        self.gait_cycles=gait_cycles
+        self.source_extloads_fpath = os.path.join(self.trial.rel_path, 
+                self.tool, 'external_loads.xml')
+        self.results_extloads_fpath = os.path.join(self.tool_path,
+                os.path.basename(self.source_extloads_fpath))
+        self.source_tasks_fpath = os.path.join(self.trial.rel_path, self.tool,
+                'tasks.xml')
+        self.results_tasks_fpath = os.path.join(self.tool_path, 
+                os.path.basename(self.source_tasks_fpath))
 
         # Specify model to be adjusted by RRA
         if not model_to_adjust:
@@ -136,12 +146,12 @@ class SetupTask(TrialTask):
 
         # Generate setup file(s) based on trial type and whether not to split 
         # up multiple gait cycles if they exist
-        if trial.gait_cycles=='separate':
+        if self.gait_cycles=='separate':
             self.add_cycle_dirs(trial.cycles)
             for cycle in trial.cycles:
                 self.generate_setup_file(cycle)
 
-        elif trial.gait_cycles=='concatenated':
+        elif self.gait_cycles=='concatenated':
             self.add_tool_dir()
             first_cycle = trial.cycles[0]
             last_cycle = trial.cycles[-1]
@@ -171,10 +181,6 @@ class SetupTask(TrialTask):
             f.write(content)
 
     def copy_over_external_loads(self):
-        self.source_extloads_fpath = os.path.join(self.trial.rel_path, 
-                self.tool, 'external_loads.xml')
-        self.results_extloads_fpath = os.path.join(self.tool_path,
-                os.path.basename(self.source_extloads_fpath))
         if not os.path.exists(self.source_extloads_fpath):
             # The user does not yet have a external_loads.xml in place; fill 
             # out the template.
@@ -204,10 +210,6 @@ class SetupTask(TrialTask):
                 f.write(content)
 
     def copy_over_tasks(self):
-        self.source_tasks_fpath = os.path.join(self.trial.rel_path, self.tool,
-                'tasks.xml')
-        self.results_tasks_fpath = os.path.join(self.tool_path, 
-                os.path.basename(self.source_tasks_fpath))
         if not os.path.exists(self.source_tasks_fpath):
             # The user does not yet have a tasks.xml in place; fill out the
             # template.

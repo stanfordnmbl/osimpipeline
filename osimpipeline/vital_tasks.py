@@ -507,7 +507,46 @@ class TaskIK(task.ToolTask):
                 os.path.join(self.path, 'ik_model_marker_locations.sto'),
                 ]
 
-# TODO, abstract RRA setup task?: class TaskRRASetup(task.SetupTask):
+class TaskIDSetup(task.SetupTask):
+    REGISTRY = []
+    def __init__(self, trial):
+        super(TaskIDSetup, self).__init__('id', trial)
+        self.doc = 'Create a setup file for Inverse Dynamics.'
+
+        # Fill out external_loads.xml template and copy over to results directory
+        self.copy_over_external_loads()
+
+    def fill_setup_template(self, file_dep, target,
+                            init_time=None, final_time=None):
+        with open(file_dep[0]) as ft:
+            content = ft.read()
+            content = content.replace('@STUDYNAME@', self.study.name)
+            content = content.replace('@NAME@', self.trial.id)
+            content = content.replace('@MODEL@', 
+                self.subject.scaled_model_fpath)
+            content = content.replace('@INIT_TIME@', '%.4f' % init_time)
+            content = content.replace('@FINAL_TIME@', '%.4f' % final_time)
+            content = content.replace('@EXTLOADS@', 
+                self.results_extloads_fpath)
+        
+        with open(target[0], 'w') as f:
+            f.write(content)
+
+class TaskID(task.ToolTask):
+    REGISTRY = []
+    def __init__(self, trial, id_setup_task):
+        super(TaskIK, self).__init__('id', trial)
+        self.doc = "Run OpenSim's Inverse Dynamics tool."
+        self.file_dep += [
+                self.subject.scaled_model_fpath,
+                id_setup_task.results_extloads_fpath,
+                os.path.join(self.path, '%s_%s_ik_solution.mot' % (
+                    self.study.name, trial.id))
+                ]
+        self.targets += [
+                os.path.join(self.path, '%s_%s_id_solution.mot' % (
+                    self.study.name, trial.id))
+                ]
 
 class TaskRRAModelSetup(task.SetupTask):
     REGISTRY = []
@@ -548,41 +587,12 @@ class TaskRRAModelSetup(task.SetupTask):
             # the resulting model.
             content = content.replace('@MODELADJUSTED@',
                    self.subject.name  + "_adjusted.osim")
+            content = content.replace('@EXTLOADS@', 
+                self.results_extloads_fpath)
+            content = content.replace('@TASKS@', self.results_tasks_fpath)
         
         with open(target[0], 'w') as f:
             f.write(content)
-
-# class TaskRRATasksSetup(task.SetupTask):
-#     REGISTRY = []
-#     def __init__(self, trial):
-#         super(TaskRRATasksSetup, self).__init__(trial, 'rratasks')
-#         self.doc = "Create a setup file for the Residual Reduction Algorithm tool to adjust kinematics, using IK kinematics."
-#         self.rra_actuators = self.study.config['rra_actuators']
-
-#         # Fill out external_loads.xml template and copy over to results 
-#         # directory
-#         self.copy_over_external_loads()
-
-#         # Fill out tasks.xml template and copy over to results directory
-#         self.copy_over_tasks()
-
-#     def fill_setup_template(self, file_dep, target):
-#         with open(file_dep[0]) as ft:
-#             content = ft.read()
-#             content = content.replace('@STUDYNAME@', self.study.name)
-#             content = content.replace('@NAME@', self.trial.id)
-#             content = content.replace('@MODEL@', 
-#                                       self.adjusted_model_fpath)
-#             content = content.replace('@INIT_TIME@', '%.4f' % self.init_time)
-#             content = content.replace('@FINAL_TIME@', '%.4f' % self.final_time)
-            
-#             rra_act = os.path.join(self.doit_path, self.rra_actuators)
-#             res_act = '../../%s_residual_actuators.xml' % self.subject.name
-#             force_set_files = '%s %s' % (rra_act, res_act)
-#             content = content.replace('@FORCESETFILES@', force_set_files)
-
-#         with open(target[0], 'w') as f:
-#             f.write(content)
 
 class TaskRRAKinSetup(task.SetupTask):
     REGISTRY = []
@@ -615,6 +625,9 @@ class TaskRRAKinSetup(task.SetupTask):
             force_set_files = '%s %s' % (self.rra_act_fpath, 
                                          self.res_act_fpath)
             content = content.replace('@FORCESETFILES@', force_set_files)
+            content = content.replace('@EXTLOADS@', 
+                self.results_extloads_fpath)
+            content = content.replace('@TASKS@', self.results_tasks_fpath)
 
         with open(target[0], 'w') as f:
             f.write(content)
@@ -703,9 +716,10 @@ class TaskCMCSetup(task.SetupTask):
     def __init__(self, trial, 
                  adjusted_model=None,
                  des_kinematics='rramodel', 
-                 control_constraints=None):
+                 control_constraints=None,
+                 gait_cycles='concatenated'):
         super(TaskCMCSetup, self).__init__('cmc', trial,  
-            adjusted_model=adjusted_model)
+            adjusted_model=adjusted_model,gait_cycles=gait_cycles)
 
         self.doc = "Create a setup file for Computed Muscle Control."
         self.cmc_act_fpath = os.path.join(self.doit_path, 
@@ -738,6 +752,7 @@ class TaskCMCSetup(task.SetupTask):
 
         # Fill out external_loads.xml template and copy over to results 
         # directory
+        print "debug1: " + self.results_extloads_fpath
         self.copy_over_external_loads()
 
         # Fill out tasks.xml template and copy over to results directory
@@ -750,8 +765,8 @@ class TaskCMCSetup(task.SetupTask):
             content = ft.read()
             content = content.replace('@STUDYNAME@', self.study.name)
             content = content.replace('@NAME@', self.trial.id)
-            content = content.replace('@DESKINEMATICS@',
-                                       self.des_kinematics_fpath)
+            content = content.replace('@DESKINEMATICS@', 
+                self.des_kinematics_fpath)
 
         with open(target[0], 'w') as f:
             f.write(content)
@@ -766,13 +781,16 @@ class TaskCMCSetup(task.SetupTask):
                                       self.adjusted_model_fpath)
             content = content.replace('@INIT_TIME@', '%.4f' % init_time)
             content = content.replace('@FINAL_TIME@', '%.4f' % final_time)
-            force_set_files = '%s %s' % (self.cmc_act_fpath, 
-                                         self.res_act_fpath)
+            force_set_files = '%s %s' % (self.cmc_act_fpath,
+                self.res_act_fpath)
             content = content.replace('@FORCESETFILES@', force_set_files)
             content = content.replace('@DESKINEMATICS@',
-                                       self.des_kinematics_fpath)
-            content = content.replace('@CONTROLCONSTRAINTS@',
-                                       self.control_constraints_fpath)
+                self.des_kinematics_fpath)
+            content = content.replace('@CONTROLCONSTRAINTS@', 
+                self.control_constraints_fpath)
+            content = content.replace('@EXTLOADS@', 
+                self.results_extloads_fpath)
+            content = content.replace('@TASKS@', self.results_tasks_fpath)
         
         with open(target[0], 'w') as f:
             f.write(content)

@@ -77,7 +77,6 @@ class Trial(object):
                 os.path.join(condition.rel_path, self.name))
         self.results_exp_path = os.path.join(self.study.config['results_path'],
                 'experiments', self.rel_path)
-        self.gait_cycles='separate'
 
         def list_condition_names():
             """Iterate through all conditions under which this trial sits."""
@@ -114,7 +113,6 @@ class Trial(object):
                 end_time = self.get_mocap_end_time()
 
             heel_strikes = [start_time, end_time]
-            self.gait_cycles='concatenated'
 
         elif (right_strikes and not left_strikes) or \
              (len(right_strikes) == len(left_strikes)+1):
@@ -130,11 +128,6 @@ class Trial(object):
             raise Exception("Invalid gait landmarks specified: ensure "
                 "specified heel strikes and toeoffs are consistent "
                 "with a integer number of gait cycles.")
-
-        # # Automatically omit cycle directory if only start and end times are 
-        # # specified
-        # if start_time or end_time:
-        #     omit_cycle_dir = True
 
         # Divide trial based on provided heel strikes and create individaul
         # cycle objects. This also supports cases where the notion of a cycle
