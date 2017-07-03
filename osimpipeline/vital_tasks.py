@@ -494,8 +494,8 @@ class TaskIKSetup(task.SetupTask):
 
 class TaskIK(task.ToolTask):
     REGISTRY = []
-    def __init__(self, trial, ik_setup_task):
-        super(TaskIK, self).__init__('ik', trial)
+    def __init__(self, trial, ik_setup_task, cycle=None):
+        super(TaskIK, self).__init__('ik', trial, cycle=cycle)
         self.doc = "Run OpenSim's Inverse Kinematics tool."
         self.file_dep += [
                 self.subject.scaled_model_fpath,
@@ -534,8 +534,8 @@ class TaskIDSetup(task.SetupTask):
 
 class TaskID(task.ToolTask):
     REGISTRY = []
-    def __init__(self, trial, id_setup_task):
-        super(TaskIK, self).__init__('id', trial)
+    def __init__(self, trial, id_setup_task, cycle=None):
+        super(TaskID, self).__init__('id', trial, cycle=cycle)
         self.doc = "Run OpenSim's Inverse Dynamics tool."
         self.file_dep += [
                 self.subject.scaled_model_fpath,
@@ -550,11 +550,10 @@ class TaskID(task.ToolTask):
 
 class TaskRRAModelSetup(task.SetupTask):
     REGISTRY = []
-    def __init__(self, trial, 
-                 adjust_body='torso',
-                 model_to_adjust=None):
+    def __init__(self, trial, adjust_body='torso', model_to_adjust=None,
+                 gait_cycles='concatenated'):
         super(TaskRRAModelSetup, self).__init__('rramodel', trial, 
-            model_to_adjust=model_to_adjust)
+            model_to_adjust=model_to_adjust, gait_cycles=gait_cycles)
         self.doc = "Create a setup file for the Residual Reduction Algorithm, to create an adjusted model."
         self.rra_act_fpath = os.path.join(self.doit_path, 
             self.study.config['rra_actuators'])
@@ -596,9 +595,9 @@ class TaskRRAModelSetup(task.SetupTask):
 
 class TaskRRAKinSetup(task.SetupTask):
     REGISTRY = []
-    def __init__(self, trial, adjusted_model=None):
+    def __init__(self, trial, adjusted_model=None, gait_cycles='concatenated'):
         super(TaskRRAKinSetup, self).__init__('rrakin', trial,  
-            adjusted_model=adjusted_model)
+            adjusted_model=adjusted_model, gait_cycles=gait_cycles)
         self.doc = "Create a setup file for the Residual Reduction Algorithm tool to adjust kinematics."
         self.rra_act_fpath = os.path.join(self.doit_path, 
             self.study.config['rra_actuators'])
@@ -634,8 +633,9 @@ class TaskRRAKinSetup(task.SetupTask):
 
 class TaskRRA(task.ToolTask):
     REGISTRY = []
-    def __init__(self, tool_folder, trial):
-        super(TaskRRA, self).__init__(tool_folder, trial, exec_name='rra')
+    def __init__(self, tool_folder, trial, cycle=None):
+        super(TaskRRA, self).__init__(tool_folder, trial, cycle=cycle,
+            exec_name='rra')
         self.doc = "Abstract class for OpenSim's Residual Reduction Algorithm tool."
         self.des_kinematics_fpath = '%s/ik/%s_%s_ik_solution.mot' % (trial.results_exp_path, self.study.name, self.trial.id)
         self.des_kinetics_fpath = \
@@ -657,8 +657,9 @@ class TaskRRA(task.ToolTask):
 
 class TaskRRAModel(TaskRRA):
     REGISTRY = []
-    def __init__(self, trial, rramodel_setup_task, reenable_probes=False):
-        super(TaskRRAModel, self).__init__('rramodel' ,trial)
+    def __init__(self, trial, rramodel_setup_task, cycle=None, 
+                 reenable_probes=False):
+        super(TaskRRAModel, self).__init__('rramodel', trial, cycle=cycle)
         self.doc = "Run OpenSim's Residual Reduction Algorithm tool to create an adjusted model."
 
         # Set file dependencies
@@ -699,8 +700,8 @@ class TaskRRAModel(TaskRRA):
 
 class TaskRRAKin(TaskRRA):
     REGISTRY = []
-    def __init__(self, trial, rrakin_setup_task):
-        super(TaskRRAKin, self).__init__('rrakin', trial)
+    def __init__(self, trial, rrakin_setup_task, cycle=None):
+        super(TaskRRAKin, self).__init__('rrakin', trial, cycle=cycle)
         self.doc = "Run OpenSim's Residual Reduction Algorithm tool to adjust kinematics, using the model from TaskRRAModel."
 
         # Set file dependencies
@@ -719,7 +720,7 @@ class TaskCMCSetup(task.SetupTask):
                  control_constraints=None,
                  gait_cycles='concatenated'):
         super(TaskCMCSetup, self).__init__('cmc', trial,  
-            adjusted_model=adjusted_model,gait_cycles=gait_cycles)
+            adjusted_model=adjusted_model, gait_cycles=gait_cycles)
 
         self.doc = "Create a setup file for Computed Muscle Control."
         self.cmc_act_fpath = os.path.join(self.doit_path, 
