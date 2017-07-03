@@ -105,20 +105,16 @@ class TrialTask(SubjectTask):
         super(TrialTask, self).__init__(trial.subject)
         self.trial = trial
 
-# TODOs: find a better name for gait_cycles
-#        use boolean instead of string flag
 class SetupTask(TrialTask):
     def __init__(self, tool, trial, 
                  model_to_adjust=None, 
-                 adjusted_model=None,
-                 gait_cycles='concatenated'):
+                 adjusted_model=None):
         super(SetupTask, self).__init__(trial)
         self.tool = tool
         self.trial = trial
         self.name = '%s_%s_setup' % (trial.id, self.tool)
         self.tool_path = os.path.join(trial.results_exp_path, self.tool)
         self.doit_path = self.study.config['doit_path']
-        self.gait_cycles=gait_cycles
 
         # Specify model to be adjusted by RRA
         if not model_to_adjust:
@@ -138,31 +134,20 @@ class SetupTask(TrialTask):
         self.adjusted_model_fpath = os.path.join(trial.results_exp_path,
             'rramodel', self.adjusted_model)
 
-        # Generate setup file(s) based on trial type, and whether not to split 
+        # Generate setup file(s) based on trial type and whether not to split 
         # up multiple gait cycles if they exist
-        if trial.type == 'overground':
-            # TODO: update setup file generation for overground case
+        if trial.gait_cycles=='separate':
+            self.add_cycle_dirs(trial.cycles)
+            for cycle in trial.cycles:
+                self.generate_setup_file(cycle)
+
+        elif trial.gait_cycles=='concatenated':
             self.add_tool_dir()
-
-        elif trial.type == 'treadmill':
-            # Create setup files for each individual gait cycle
-            if gait_cycles=='separate':
-                self.add_cycle_dirs(trial.cycles)
-                for cycle in trial.cycles:
-                    self.generate_setup_file(cycle)
-
-            # Create a setup file with all gait cycles concatenated together
-            elif gait_cycles=='concatenated':
-                self.add_tool_dir()
-                first_cycle = trial.cycles[0]
-                last_cycle = trial.cycles[-1]
-                self.init_time = first_cycle.cycle_start
-                self.final_time = last_cycle.cycle_end
-                self.generate_setup_file()
-
-            else:
-                raise Exception("SetupTask: %s is not a valid gait cycle "
-                    "keyword, please choose 'separate' or 'concatenated'.")
+            first_cycle = trial.cycles[0]
+            last_cycle = trial.cycles[-1]
+            self.init_time = first_cycle.start
+            self.final_time = last_cycle.end
+            self.generate_setup_file()
 
     def add_tool_dir(self):
         if not os.path.exists(self.tool_path): os.makedirs(self.tool_path)
@@ -248,8 +233,8 @@ class SetupTask(TrialTask):
                 ['templates/%s/setup.xml' % self.tool],
                 [self.results_setup_fpath],
                 self.fill_setup_template,
-                init_time=cycle.cycle_start,
-                final_time=cycle.cycle_end
+                init_time=cycle.start,
+                final_time=cycle.end
                 )
         else:
             self.results_setup_fpath = os.path.join(self.tool_path,'setup.xml')

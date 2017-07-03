@@ -703,10 +703,9 @@ class TaskCMCSetup(task.SetupTask):
     def __init__(self, trial, 
                  adjusted_model=None,
                  des_kinematics='rramodel', 
-                 control_constraints=None,
-                 gait_cycles='concatenated'):
+                 control_constraints=None):
         super(TaskCMCSetup, self).__init__('cmc', trial,  
-            adjusted_model=adjusted_model, gait_cycles=gait_cycles)
+            adjusted_model=adjusted_model)
 
         self.doc = "Create a setup file for Computed Muscle Control."
         self.cmc_act_fpath = os.path.join(self.doit_path, 
@@ -715,7 +714,6 @@ class TaskCMCSetup(task.SetupTask):
             '%s_residual_actuators.xml' % self.subject.name)
         self.des_kinematics = des_kinematics
         self.control_constraints = control_constraints
-        self.gait_cycles=gait_cycles
 
         # Set desired kinematics path
         if self.des_kinematics=='rrakin':
