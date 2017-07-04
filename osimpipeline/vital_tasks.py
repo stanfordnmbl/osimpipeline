@@ -166,12 +166,16 @@ class TaskScaleSetup(task.SubjectTask):
         # setup.xml
         # ---------
         self.setup_fpath = os.path.join(self.results_scale_path, 'setup.xml')
+        setup_for_GUI_fpath = os.path.join(self.results_scale_path,
+                'setup_for_GUI.xml')
         self.add_action(
                 {'marker_traj':
                     self.mocap_trial.marker_trajectories_fpath,
                  'generic_model': self.study.generic_model_fpath,
                     },
-                {'setup': self.setup_fpath
+                {
+                    'setup': self.setup_fpath,
+                    'setup_for_GUI': setup_for_GUI_fpath,
                     },
                 self.create_scale_setup)
 
@@ -289,6 +293,11 @@ class TaskScaleSetup(task.SubjectTask):
         if not os.path.exists(self.results_scale_path):
             os.makedirs(self.results_scale_path)
         tool.printToXML(target['setup'])
+
+        # The 3.3 GUI has a bug where it can't handle output model file names
+        # with relative paths.
+        placer.setOutputModelFileName('')
+        tool.printToXML(target['setup_for_GUI'])
             
 
 class TaskScale(task.SubjectTask):

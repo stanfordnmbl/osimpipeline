@@ -2,8 +2,6 @@ import os
 
 import yaml
 
-# from perimysium.dataman import GaitLandmarks
-
 import vital_tasks
 
 class GaitLandmarks(object):
