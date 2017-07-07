@@ -18,19 +18,20 @@ class Cycle(object):
         self.name = 'cycle%02i' % num
         self.metadata = metadata
         self.id = '_'.join([trial.id, self.name])
+        self.gl = gait_landmarks
         self.start = gait_landmarks.cycle_start
         self.end = gait_landmarks.cycle_end
 
         self.tasks = list()
 
-    def add_task(self, cls, trial, *args, **kwargs):
+    def add_task(self, cls, *args, **kwargs):
         """Add a TrialTask for this cycle.
             
            TrialTasks for cycles can only be created
            by Trial objects. 
         """
         kwargs['cycle']=self
-        task = cls(trial, *args, **kwargs)
+        task = cls(self.trial, *args, **kwargs)
         self.tasks.append(task)
         return task
 
@@ -53,15 +54,16 @@ class Trial(object):
     ```
 
     ```
-    new_trial = cond.add_trial(1, right_strikes=[45.90,47.00,52.00],
-                                  right_toeoffs=[46.64,49.00],  
-                                  left_strikes=[46.45,50.00],
-                                  left_toeoffs=[47.19,51.00],
+    new_trial = cond.add_trial(1, right_strikes=[45.900, 47.000, 48.133]
+                                  right_toeoffs=[46.642, 47.758],  
+                                  left_strikes=[46.450, 47.567],
+                                  left_toeoffs=[46.075, 47.192],
                                   omit_trial_dir=True)
     ```
     """
     def __init__(self, condition, num, metadata=None,
             omit_trial_dir=False, primary_leg=False,
+            model_to_adjust_fpath=None,
             start_time=None, end_time=None,
             right_strikes=None, right_toeoffs=None,
             left_strikes=None, left_toeoffs=None,
@@ -96,8 +98,13 @@ class Trial(object):
                 self.expdata_path, 'marker_trajectories.trc')
         self.ground_reaction_fpath = os.path.join(
                 self.expdata_path, 'ground_reaction_orig.mot')
+        # Model used by RRA to create adjusted model. By default, this is set 
+        # to the scaled model, but it can be set to a different model if the 
+        # scaled model must be modifed (adding a backpack, etc.)
+        self.model_to_adjust_fpath = (self.subject.scaled_model_fpath if 
+            not model_to_adjust_fpath else model_to_adjust_fpath)
         self.tasks = list()
-        # TODO self.add_task(vital_tasks.TaskGRFGaitLandmarks)
+        
 
         # One type of time information input supported for a given trial
         if (start_time or end_time) and (right_strikes or left_strikes):
@@ -114,20 +121,20 @@ class Trial(object):
 
             heel_strikes = [start_time, end_time]
 
-        elif (right_strikes and not left_strikes) or \
-             (len(right_strikes) == len(left_strikes)+1):
+        elif ((right_strikes and not left_strikes) or 
+             (len(right_strikes) == len(left_strikes)+1)):
             heel_strikes=right_strikes
             primary_leg='right'
 
-        elif (left_strikes and not right_strikes) or \
-             (len(left_strikes) == len(right_strikes)+1):
+        elif ((left_strikes and not right_strikes) or \
+             (len(left_strikes) == len(right_strikes)+1)):
             heel_strikes=left_strikes
             primary_leg='left'
 
         else:
             raise Exception("Invalid gait landmarks specified: ensure "
                 "specified heel strikes and toeoffs are consistent "
-                "with a integer number of gait cycles.")
+                "with an integer number of gait cycles.")
 
         # Divide trial based on provided heel strikes and create individaul
         # cycle objects. This also supports cases where the notion of a cycle
@@ -189,7 +196,7 @@ class Trial(object):
         """Add a TrialTask for each cycle in this trial.
         """
         for cycle in self.cycles:
-            cycle.add_task(cls, self, *args, **kwargs)
+            cycle.add_task(cls, *args, **kwargs)
 
 class Condition(object):
     """There can be multiple tiers of conditions; conditions can be nested
@@ -252,12 +259,8 @@ class Subject(object):
         self.rel_path = self.name
         self.results_exp_path = os.path.join(self.study.config['results_path'],
             'experiments', self.rel_path)
-        self.model_name = self.name
-        self.scaled_model_fpath = os.path.join(self.results_exp_path, '%s.osim' % self.model_name)
-        # Model used by RRA to create adjusted model. By default, this is set 
-        # to the scaled model, but it can be set to a different model if the 
-        # scaled model must be modifed (adding a backpack, etc.)
-        self.model_to_adjust_fpath = self.scaled_model_fpath
+        self.scaled_model_fpath = os.path.join(self.results_exp_path, 
+            '%s.osim' % self.name)
         self.conditions = list()
         self.tasks = list()
     def add_condition(self, *args, **kwargs):
