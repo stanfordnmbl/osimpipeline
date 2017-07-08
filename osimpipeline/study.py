@@ -30,7 +30,9 @@ class Cycle(object):
            TrialTasks for cycles can only be created
            by Trial objects. 
         """
-        kwargs['cycle']=self
+        if 'cycle' not in kwargs:
+            kwargs['cycle'] = self
+
         task = cls(self.trial, *args, **kwargs)
         self.tasks.append(task)
         return task
@@ -104,7 +106,6 @@ class Trial(object):
         self.model_to_adjust_fpath = (self.subject.scaled_model_fpath if 
             not model_to_adjust_fpath else model_to_adjust_fpath)
         self.tasks = list()
-        
 
         # One type of time information input supported for a given trial
         if (start_time or end_time) and (right_strikes or left_strikes):
@@ -126,7 +127,7 @@ class Trial(object):
             heel_strikes=right_strikes
             primary_leg='right'
 
-        elif ((left_strikes and not right_strikes) or \
+        elif ((left_strikes and not right_strikes) or 
              (len(left_strikes) == len(right_strikes)+1)):
             heel_strikes=left_strikes
             primary_leg='left'
@@ -195,8 +196,22 @@ class Trial(object):
     def add_task_cycles(self, cls, *args, **kwargs):
         """Add a TrialTask for each cycle in this trial.
         """
-        for cycle in self.cycles:
-            cycle.add_task(cls, *args, **kwargs)
+        orig_args = args
+        setup_tasks = None
+        if 'setup_tasks' in kwargs:
+            setup_tasks = kwargs['setup_tasks']
+            kwargs.pop('setup_tasks', None)
+
+        tasks = list()
+        for i, cycle in enumerate(self.cycles):
+
+            if setup_tasks:
+                args = orig_args + (setup_tasks[i],)
+
+            task = cycle.add_task(cls, *args, **kwargs)
+            tasks.append(task)
+
+        return tasks
 
 class Condition(object):
     """There can be multiple tiers of conditions; conditions can be nested
@@ -261,6 +276,8 @@ class Subject(object):
             'experiments', self.rel_path)
         self.scaled_model_fpath = os.path.join(self.results_exp_path, 
             '%s.osim' % self.name)
+        self.residual_actuators_fpath = os.path.join(self.results_exp_path, 
+            '%s_residual_actuators.xml' % self.name)
         self.conditions = list()
         self.tasks = list()
     def add_condition(self, *args, **kwargs):
@@ -307,9 +324,12 @@ class Study(object):
     repository, since different users might choose different values for these
     settings.
     """
-    def __init__(self, name, generic_model_fpath):
+    def __init__(self, name, generic_model_fpath, rra_actuators_fpath=None,
+        cmc_actuators_fpath=None):
         self.name = name
         self.source_generic_model_fpath = generic_model_fpath
+        self.source_rra_actuators_fpath = rra_actuators_fpath
+        self.source_cmc_actuators_fpath = cmc_actuators_fpath
         try:
             with open('config.yaml', 'r') as f:
                 self.config = yaml.load(f)
@@ -320,6 +340,10 @@ class Study(object):
         self.generic_model_fpath = os.path.join(self.config['results_path'],
                 'generic_model.osim')
                 #os.path.basename(generic_model_fpath))
+        self.rra_actuators_fpath = os.path.join(self.config['results_path'],
+                'rra_actuators.xml')
+        self.cmc_actuators_fpath = os.path.join(self.config['results_path'],
+                'cmc_actuators.xml')
 
         self.subjects = list() 
         self.tasks = list()

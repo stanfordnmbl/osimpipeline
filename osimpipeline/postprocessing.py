@@ -316,14 +316,14 @@ def plot_marker_error_general(output_filepath, marker_names, ymax, gl,
     fig.savefig(output_filepath)
 
 
-def plot_marker_error(output_filepath, marker_names, ymax, gl,
-    *args,**kwargs):
+def plot_marker_error(output_filepath, marker_names, ymax, gl, *args, 
+    **kwargs):
     data = marker_error(*args, **kwargs)
     plot_marker_error_general(output_filepath, marker_names, ymax, gl, data)
 
 
 def plot_marker_error_from_kinematics(output_filepath, marker_names, ymax, gl,
-    *args,**kwargs):
+    *args, **kwargs):
     data = marker_error_from_kinematics(*args, **kwargs)
     plot_marker_error_general(output_filepath, marker_names, ymax, gl, data)
 

@@ -116,37 +116,42 @@ class SetupTask(TrialTask):
         self.trial = trial
         self.tool_path = os.path.join(trial.results_exp_path, self.tool)
         self.doit_path = self.study.config['doit_path']
-        self.source_extloads_fpath = os.path.join(self.trial.rel_path, 
-                self.tool, 'external_loads.xml')
-        self.results_extloads_fpath = os.path.join(self.tool_path,
-                os.path.basename(self.source_extloads_fpath))
-        self.source_tasks_fpath = os.path.join(self.trial.rel_path, self.tool,
-                'tasks.xml')
-        self.results_tasks_fpath = os.path.join(self.tool_path, 
-                os.path.basename(self.source_tasks_fpath))
-        self.adjusted_model = '%s_adjusted.osim' % self.subject.name
+        self.cycle = cycle
 
         # Generate setup file based on whether or not a specific cycle has been
         # specified
-        if cycle:
-            self.name = '%s_%s_setup_%s' % (trial.id, self.tool, cycle.name)
-            self.add_cycle_dir(cycle)
-            self.tricycle_path = os.path.join(self.tool_path, cycle.name)
-            self.init_time=cycle.start
-            self.final_time=cycle.end
+        if self.cycle:
+            self.create_setup_deps = (True if self.cycle.name=='cycle01' else
+                False)
+            self.name = '%s_%s_setup_%s' % (trial.id, self.tool, 
+                self.cycle.name)
+            self.add_cycle_dir()
+            self.path = os.path.join(self.tool_path, self.cycle.name)
+            self.init_time=self.cycle.start
+            self.final_time=self.cycle.end
         else:
+            self.create_setup_deps = True
             self.name = '%s_%s_setup' % (trial.id, self.tool)
             self.add_tool_dir()
-            self.tricycle_path = self.tool_path
+            self.path = self.tool_path
             first_cycle = trial.cycles[0]
             last_cycle = trial.cycles[-1]
             self.init_time = first_cycle.start
             self.final_time = last_cycle.end
-            
-        self.adjusted_model_fpath = os.path.join(self.tricycle_path,
+
+        self.source_extloads_fpath = os.path.join(trial.rel_path, self.tool,
+            'external_loads.xml')
+        self.results_extloads_fpath = os.path.join(self.path,
+                os.path.basename(self.source_extloads_fpath))
+        self.source_tasks_fpath = os.path.join(trial.rel_path, self.tool,
+            'tasks.xml')
+        self.results_tasks_fpath = os.path.join(self.path, 
+                os.path.basename(self.source_tasks_fpath))
+        self.adjusted_model = '%s_adjusted.osim' % self.subject.name    
+        self.adjusted_model_fpath = os.path.join(self.path, 
             self.adjusted_model)
-        self.results_setup_fpath = os.path.join(self.tricycle_path, 
-            'setup.xml')    
+        self.results_setup_fpath = os.path.join(self.path, 'setup.xml')   
+
         self.add_action(
                     ['templates/%s/setup.xml' % self.tool],
                     [self.results_setup_fpath],
@@ -156,7 +161,8 @@ class SetupTask(TrialTask):
                     )
 
     def create_external_loads_action(self):
-        if not os.path.exists(self.source_extloads_fpath):
+        if (not os.path.exists(self.source_extloads_fpath) and 
+            self.create_setup_deps):
             # The user does not yet have a external_loads.xml in place; fill 
             # out the template.
             self.add_action(
@@ -166,7 +172,7 @@ class SetupTask(TrialTask):
             self.actions.append((self.copy_file,
                 [[self.source_extloads_fpath], [self.results_extloads_fpath]]))
         else:
-            # We have already filled out the template tasks file,
+            # We have already filled out the template external loads file,
             # and the user might have made changes to it.
             self.add_action(
                     [self.source_extloads_fpath],
@@ -174,7 +180,8 @@ class SetupTask(TrialTask):
                     self.copy_file) 
 
     def create_tasks_action(self):
-        if not os.path.exists(self.source_tasks_fpath):
+        if (not os.path.exists(self.source_tasks_fpath) and
+            self.create_setup_deps):
             # The user does not yet have a tasks.xml in place; fill out the
             # template.
             self.add_action(
@@ -217,33 +224,32 @@ class SetupTask(TrialTask):
     def add_tool_dir(self):
         if not os.path.exists(self.tool_path): os.makedirs(self.tool_path)
 
-    def add_cycle_dir(self, cycle):
+    def add_cycle_dir(self):
         self.add_tool_dir()
-        cycle_path = os.path.join(self.tool_path, cycle.name)
+        cycle_path = os.path.join(self.tool_path, self.cycle.name)
         if not os.path.exists(cycle_path): os.makedirs(cycle_path)
 
 
 class ToolTask(TrialTask):
-    def __init__(self, tool_folder, setup_task, trial, cycle=None,
+    def __init__(self, setup_task, trial, cycle=None,
                  exec_name=None, cmd=None, env=None):
         super(ToolTask, self).__init__(trial)
-        self.tool_folder = tool_folder
         self.exec_name = exec_name
         self.cmd = cmd
         self.env = env
-        self.path = setup_task.tricycle_path
+        self.path = setup_task.path
 
         if cycle:
-            self.name = '%s_%s_%s' % (trial.id, tool_folder, cycle.name)
+            self.name = '%s_%s_%s' % (trial.id, setup_task.tool, cycle.name)
         else:
-            self.name = '%s_%s' % (trial.id, tool_folder)
+            self.name = '%s_%s' % (trial.id, setup_task.tool)
 
         self.file_dep = [
                 '%s/setup.xml' % self.path
                 ]
 
         if self.exec_name == None:
-            self.exec_name = self.tool_folder
+            self.exec_name = setup_task.tool
         if self.cmd == None:
             cmd_action = CmdAction('"' + os.path.join(
                 self.study.config['opensim_home'],'bin',self.exec_name)
@@ -257,21 +263,21 @@ class ToolTask(TrialTask):
                 cmd_action,
                 ]
 
-# class PostTask(TrialTask):
-#     def __init__(self, setup_task, trial):
-#         super(PostTask, self).__init__(trial)
-#         self.name = '%s_%s_post' % (trial.id, tool_folder)
-#         self.methods = list()
+class PostTask(TrialTask):
+    def __init__(self, setup_task, trial, cycle=None):
+        super(PostTask, self).__init__(trial)
+        self.name = '%s_%s_post' % (trial.id, setup_task.tool)
+        self.methods = list()
+        self.path = setup_task.path
+        self.gl = None if not cycle else cycle.gl
 
-#         if setup_task.gait_cycles=='separate':
-#             for cycle in trial.cycles:
-#                 self.path = os.path.join(trial.results_exp_path, tool_folder, 
-#                     cycle.name)
+        if cycle:
+            self.name = '%s_%s_post_%s' % (trial.id, setup_task.tool, 
+                cycle.name)
+        else:
+            self.name = '%s_%s_post' % (trial.id, setup_task.tool)
 
-#                 for method in self.methods:
-            
-#         elif setup_task.gait_cycles=='concatenated':
-#             self.path = os.path.join(trial.results_exp_path, tool_folder)
+
 
 
 
