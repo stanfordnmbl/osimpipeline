@@ -2,17 +2,38 @@
 import os
 import task
 from doit.action import CmdAction
+from numpy import loadtxt
+import shutil
+import pylab as pl
 
-class TaskCopyGenericModelToResults(task.StudyTask):
+# Import postprocessing subroutines
+from postprocessing import plot_lower_limb_kinematics, plot_marker_error
+
+
+class TaskCopyGenericModelFilesToResults(task.StudyTask):
     REGISTRY = []
     def __init__(self, study):
-        super(TaskCopyGenericModelToResults, self).__init__(study)
-        self.name = '%s_copy_generic_model' % study.name
+        super(TaskCopyGenericModelFilesToResults, self).__init__(study)
+        self.name = '%s_copy_generic_model_files' % study.name
         self.doc = 'Copy generic model to the results directory.'
         self.add_action(
                 [study.source_generic_model_fpath],
                 [study.generic_model_fpath],
                 self.copy_file)
+
+        if study.rra_actuators_fpath:
+            self.add_action(
+                [study.source_rra_actuators_fpath],
+                [study.rra_actuators_fpath],
+                self.copy_file)
+
+        if study.cmc_actuators_fpath:
+            self.add_action(
+                [study.source_cmc_actuators_fpath],
+                [study.cmc_actuators_fpath],
+                self.copy_file)
+
+
 
 class TaskCopyMotionCaptureData(task.StudyTask):
     """This a very generic task for copying motion capture data (marker
@@ -446,6 +467,7 @@ class TaskGRFGaitLandmarks(task.TrialTask):
                 [trial.ground_reaction_fpath],
                 [os.path.join(trial.expdata_path, '..', '%s.pdf' % self.name)],
                 self.save_gait_landmarks_fig)
+
     def save_gait_landmarks_fig(self, file_dep, target):
         from perimysium.postprocessing import gait_landmarks_from_grf
         import pylab as pl
@@ -457,92 +479,395 @@ class TaskGRFGaitLandmarks(task.TrialTask):
         pl.gcf().savefig(target[0])
 
 
-class TaskIKSetup(task.TrialTask):
+class TaskIKSetup(task.SetupTask):
     REGISTRY = []
-    def __init__(self, trial):
-        super(TaskIKSetup, self).__init__(trial)
-        self.name = '%s_ik_setup' % trial.id
+    def __init__(self, trial, **kwargs):
+        super(TaskIKSetup, self).__init__('ik', trial, **kwargs)
         self.doc = 'Create a setup file for Inverse Kinematics.'
-        self.results_path = os.path.join(trial.results_exp_path, 'ik')
+        self.solution_fpath = os.path.join(self.path, 
+            '%s_%s_ik_solution.mot' % (self.study.name, trial.id))
+        self.model_markers_fpath = os.path.join(self.path, 
+            'ik_model_marker_locations.sto')
 
-        # tasks.xml.
-        # ----------
-        self.source_tasks_fpath = os.path.join(trial.rel_path, 'ik',
-                'tasks.xml')
-        self.results_tasks_fpath = os.path.join(self.results_path, 
-                os.path.basename(self.source_tasks_fpath))
-        if not os.path.exists(self.source_tasks_fpath):
-            # The user does not yet have a tasks.xml in place; fill out the
-            # template.
-            self.add_action(
-                    ['templates/ik/tasks.xml'],
-                    [self.source_tasks_fpath],
-                    self.fill_tasks_template)
-            self.actions.append((self.copy_file,
-                [[self.source_tasks_fpath], [self.results_tasks_fpath]]))
-        else:
-            # We have already filled out the template tasks file,
-            # and the user might have made changes to it.
-            self.add_action(
-                    [self.source_tasks_fpath],
-                    [self.results_tasks_fpath],
-                    self.copy_file)
+        # Fill out tasks.xml template and copy over to results directory
+        self.create_tasks_action()
 
-        # setup.xml.
-        # ----------
-        self.add_action(
-                ['templates/ik/setup.xml'],
-                [os.path.join(trial.results_exp_path, 'ik', 'setup.xml')],
-                self.fill_setup_template,
-                )
-
-    def fill_tasks_template(self, file_dep, target):
-        if not os.path.exists(target[0]):
-            ik_dir = os.path.split(target[0])[0]
-            with open(file_dep[0]) as ft:
-                content = ft.read()
-                content = content.replace('@STUDYNAME@', self.study.name)
-                content = content.replace('@NAME@', self.trial.id)
-    
-            if not os.path.exists(ik_dir): os.makedirs(ik_dir)
-            with open(target[0], 'w') as f:
-                f.write(content)
-
-    def fill_setup_template(self, file_dep, target):
-        ik_dir = os.path.split(target[0])[0]
+    def fill_setup_template(self, file_dep, target,
+                            init_time=None, final_time=None):
         with open(file_dep[0]) as ft:
             content = ft.read()
             content = content.replace('@STUDYNAME@', self.study.name)
             content = content.replace('@NAME@', self.trial.id)
-            content = content.replace('@MODEL@', os.path.relpath(
-                self.subject.scaled_model_fpath, self.results_path))
-            content = content.replace('@TASKS@', os.path.relpath(
-                self.results_tasks_fpath, self.results_path))
-            content = content.replace('@MARKER_FILE@', os.path.relpath(
-                self.trial.marker_trajectories_fpath, self.results_path))
-            # TODO content = content.replace('@FINALTIME@', '')
+            content = content.replace('@MODEL@', 
+                os.path.relpath(self.subject.scaled_model_fpath, self.path))
+            content = content.replace('@MARKER_FILE@',
+                os.path.relpath(self.trial.marker_trajectories_fpath, 
+                    self.path))
+            content = content.replace('@INIT_TIME@', '%.4f' % init_time)
+            content = content.replace('@FINAL_TIME@', '%.4f' % final_time)
         
-        if not os.path.exists(self.results_path):
-            os.makedirs(self.results_path)
         with open(target[0], 'w') as f:
             f.write(content)
 
 
 class TaskIK(task.ToolTask):
-    def __init__(self, trial, ik_setup_task):
-        super(TaskIK, self).__init__(trial, 'ik')
+    REGISTRY = []
+    def __init__(self, trial, ik_setup_task, cycle=None):
+        super(TaskIK, self).__init__(ik_setup_task, trial, cycle=cycle)
         self.doc = "Run OpenSim's Inverse Kinematics tool."
+        
         self.file_dep += [
                 self.subject.scaled_model_fpath,
                 ik_setup_task.results_tasks_fpath,
+                ik_setup_task.results_setup_fpath
                 ]
         self.targets += [
-                os.path.join(self.path, '%s_%s_ik_solution.mot' % (
-                    self.study.name, trial.id)),
-                os.path.join(self.path, 'ik_model_marker_locations.sto'),
+                ik_setup_task.solution_fpath,
+                ik_setup_task.model_markers_fpath
                 ]
 
 
+class TaskIKPost(task.PostTask):
+    REGISTRY=[]
+    def __init__(self, trial, ik_setup_task, cycle=None, error_markers=None):
+        super(TaskIKPost, self).__init__(ik_setup_task, trial, cycle=cycle)
+        self.doc = 'Create plots from the results of Inverse Kinematics.'
+        self.joint_angles_plotpath = '%s/joint_angles.pdf' % self.path
+        self.marker_errors_plotpath = '%s/marker_error.pdf' % self.path
+        self.error_markers = error_markers
 
+        self.add_action([ik_setup_task.solution_fpath],
+                        [self.joint_angles_plotpath],
+                        self.joint_angle_plots)
 
+        if self.error_markers:
+            self.add_action([self.subject.scaled_model_fpath, 
+                            ik_setup_task.model_markers_fpath,
+                            self.trial.marker_trajectories_fpath],
+                            [self.marker_errors_plotpath],
+                            self.marker_error_plots)
 
+    def joint_angle_plots(self, file_dep, target):
+        # if os.path.exists(self.fig_fpath):
+        #     os.rename(self.fig_fpath,
+        #             self.fig_fpath.replace('.pdf', '_backup.pdf'))
+        fig = plot_lower_limb_kinematics(file_dep[0], self.gl)
+        fig.savefig(target[0])
+        pl.close(fig)
+
+    def marker_error_plots(self, file_dep, target):
+        # if os.path.exists(self.errorplot_fpath):
+        #     os.rename(self.errorplot_fpath,
+        #             self.errorplot_fpath.replace('.pdf', '_backup.pdf'))
+        plot_marker_error(target[0], self.error_markers, 
+            10, self.gl, file_dep[0], file_dep[1], file_dep[2])
+
+    
+class TaskIDSetup(task.SetupTask):
+    REGISTRY = []
+    def __init__(self, trial, **kwargs):
+        super(TaskIDSetup, self).__init__('id', trial, **kwargs)
+        self.doc = 'Create a setup file for Inverse Dynamics.'
+
+        # Fill out external_loads.xml template and copy over to results 
+        # directory
+        self.create_external_loads_action()
+
+    def fill_setup_template(self, file_dep, target,
+                            init_time=None, final_time=None):
+        with open(file_dep[0]) as ft:
+            content = ft.read()
+            content = content.replace('@STUDYNAME@', self.study.name)
+            content = content.replace('@NAME@', self.trial.id)
+            content = content.replace('@MODEL@', 
+                os.path.relpath(self.subject.scaled_model_fpath), self.path)
+            content = content.replace('@INIT_TIME@', '%.4f' % init_time)
+            content = content.replace('@FINAL_TIME@', '%.4f' % final_time)
+        
+        with open(target[0], 'w') as f:
+            f.write(content)
+
+class TaskID(task.ToolTask):
+    REGISTRY = []
+    def __init__(self, trial, id_setup_task, cycle=None):
+        super(TaskID, self).__init__(id_setup_task, trial, cycle=cycle)
+        self.doc = "Run OpenSim's Inverse Dynamics tool."
+        self.file_dep += [
+                self.subject.scaled_model_fpath,
+                id_setup_task.results_extloads_fpath,
+                id_setup_task.results_setup_fpath,
+                os.path.join(self.path, '%s_%s_ik_solution.mot' % (
+                    self.study.name, trial.id))
+                ]
+        self.targets += [
+                os.path.join(self.path, '%s_%s_id_solution.mot' % (
+                    self.study.name, trial.id))
+                ]
+
+class TaskRRAModelSetup(task.SetupTask):
+    REGISTRY = []
+    def __init__(self, trial, adjust_body='torso', **kwargs):
+        super(TaskRRAModelSetup, self).__init__('rramodel', trial, **kwargs)
+        self.doc = "Create a setup file for the Residual Reduction Algorithm, to create an adjusted model."
+        self.adjust_body = adjust_body
+
+        # Fill out external_loads.xml template and copy over to results 
+        # directory
+        self.create_external_loads_action()
+
+        # Fill out tasks.xml template and copy over to results directory
+        self.create_tasks_action()
+
+    def fill_setup_template(self, file_dep, target,
+                            init_time=None, final_time=None):
+        with open(file_dep[0]) as ft:
+            content = ft.read()
+            content = content.replace('@STUDYNAME@', self.study.name)
+            content = content.replace('@NAME@', self.trial.id)
+            content = content.replace('@MODEL@', 
+                os.path.relpath(self.trial.model_to_adjust_fpath, self.path))
+            content = content.replace('@INIT_TIME@', '%.4f' % init_time)
+            content = content.replace('@FINAL_TIME@', '%.4f' % final_time)
+            force_set_files = '%s %s' % (
+                os.path.relpath(self.study.rra_actuators_fpath, self.path), 
+                os.path.relpath(self.subject.residual_actuators_fpath, 
+                    self.path))
+            content = content.replace('@FORCESETFILES@', force_set_files)
+            content = content.replace('@ADJUSTCOMBODY@', self.adjust_body)
+            # We always compute the mass change, but we just don't always USE
+            # the resulting model.
+            content = content.replace('@MODELADJUSTED@',
+                   self.adjusted_model)
+        
+        with open(target[0], 'w') as f:
+            f.write(content)
+
+class TaskRRAKinSetup(task.SetupTask):
+    REGISTRY = []
+    def __init__(self, trial, **kwargs):
+        super(TaskRRAKinSetup, self).__init__('rrakin', trial,
+            **kwargs)
+        self.doc = "Create a setup file for the Residual Reduction Algorithm tool to adjust kinematics."
+
+        # Fill out external_loads.xml template and copy over to results 
+        # directory
+        self.create_external_loads_action()
+
+        # Fill out tasks.xml template and copy over to results directory
+        self.create_tasks_action()
+
+    def fill_setup_template(self, file_dep, target,
+                            init_time=None, final_time=None):
+        with open(file_dep[0]) as ft:
+            content = ft.read()
+            content = content.replace('@STUDYNAME@', self.study.name)
+            content = content.replace('@NAME@', self.trial.id)
+            content = content.replace('@MODEL@', 
+                os.join.relpath(self.adjusted_model_fpath, self.path))
+            content = content.replace('@INIT_TIME@', '%.4f' % init_time)
+            content = content.replace('@FINAL_TIME@', '%.4f' % final_time)
+            force_set_files = '%s %s' % (
+                os.path.relpath(self.study.rra_actuators_fpath, self.path), 
+                os.path.relpath(self.subject.residual_actuators_fpath, 
+                    self.path))
+            content = content.replace('@FORCESETFILES@', force_set_files)
+
+        with open(target[0], 'w') as f:
+            f.write(content)
+
+class TaskRRA(task.ToolTask):
+    REGISTRY = []
+    def __init__(self, setup_task, trial, cycle=None):
+        super(TaskRRA, self).__init__(setup_task, trial, 
+            cycle=cycle, exec_name='rra')
+        self.doc = "Abstract class for OpenSim's RRA tool."
+        self.des_kinematics_fpath = '%s/ik/%s_%s_ik_solution.mot' % (
+            trial.results_exp_path, self.study.name, self.trial.id)
+        self.des_kinetics_fpath = \
+            '%s/expdata/ground_reaction_orig.mot' % trial.results_exp_path
+
+        # Set file dependencies
+        self.file_dep += [
+                self.des_kinematics_fpath,
+                self.des_kinetics_fpath,
+                self.subject.residual_actuators_fpath,
+                self.study.rra_actuators_fpath
+                ]
+
+        # Set targets for all RRA outputs
+        for rra_output in ['Actuation_force.sto',
+                'Actuation_power.sto', 'Actuation_speed.sto',
+                'avgResiduals.txt', 'controls.sto', 'controls.xml',
+                'Kinematics_dudt.sto', 'Kinematics_q.sto', 'Kinematics_u.sto',
+                'pErr.sto', 'states.sto']:
+            self.targets += ['%s/results/%s_%s_%s_%s' % (
+                self.path, self.study.name, cycle.id if cycle else trial.id,
+                setup_task.tool, rra_output)]
+
+class TaskRRAModel(TaskRRA):
+    REGISTRY = []
+    def __init__(self, trial, rramodel_setup_task, cycle=None, 
+                 reenable_probes=False):
+        super(TaskRRAModel, self).__init__(rramodel_setup_task,
+            trial, cycle=cycle)
+        self.doc = "Run OpenSim's RRA tool to create an adjusted model."
+
+        # Set common file dependencies
+        self.file_dep += [
+            trial.model_to_adjust_fpath,
+            rramodel_setup_task.results_setup_fpath,
+            rramodel_setup_task.results_tasks_fpath,
+            rramodel_setup_task.results_extloads_fpath, 
+            ]
+
+        self.targets += [rramodel_setup_task.adjusted_model_fpath]
+
+        # Deal with the fact that this operation would otherwise overwrite
+        # the valuable RRA log.
+        cur_log = '%s/out.log' % self.path
+        rra_log = '%s/out_rra.log' % self.path
+
+        def copylog():
+            if os.path.exists(cur_log): shutil.copyfile(cur_log, rra_log)
+        def removelog():
+            if os.path.exists(cur_log): os.remove(cur_log)
+        def renamelog():
+            if os.path.exists(rra_log): os.rename(rra_log, cur_log)
+        self.actions += [
+                copylog,
+                removelog,
+                renamelog,
+                ]
+
+        if reenable_probes:
+            self.actions += [self.reenable_probes]
+
+    def reenable_probes(self, rramodel_setup_task):
+        # RRA disables the probes; let's re-enable them.
+        import opensim
+        m = opensim.Model(rramodel_setup_task.adjusted_model_fpath)
+        from perimysium.modeling import enable_probes
+        enable_probes(rramodel_setup_task.adjusted_model_fpath)
+
+class TaskRRAKin(TaskRRA):
+    REGISTRY = []
+    def __init__(self, trial, rrakin_setup_task, cycle=None):
+        super(TaskRRAKin, self).__init__(rrakin_setup_task, trial,
+            cycle=cycle)
+        self.doc = "Run OpenSim's RRA tool to adjust model kinematics"
+            
+        # Set file dependencies
+        self.file_dep += [
+                rrakin_setup_task.adjusted_model_fpath,
+                rrakin_setup_task.results_setup_fpath,
+                rrakin_setup_task.results_tasks_fpath,
+                rrakin_setup_task.results_extloads_fpath
+                ]
+
+class TaskCMCSetup(task.SetupTask):
+    REGISTRY = []
+    def __init__(self, trial, des_kinematics='rrakin', 
+                 control_constraints=None, **kwargs):
+        super(TaskCMCSetup, self).__init__('cmc', trial, **kwargs)
+        self.doc = "Create a setup file for Computed Muscle Control."
+        self.des_kinematics = des_kinematics
+        self.control_constraints = control_constraints
+
+        # Set desired kinematics path
+        if self.des_kinematics=='rrakin':
+            self.des_kinematics_fpath = os.path.join(trial.results_exp_path, 
+                'rrakin', 'results',
+                '%s_%s_rrakin_Kinematics_q.sto' % (self.study.name, trial.id))
+        elif self.des_kinematics=='ik':
+            self.des_kinematics_fpath = os.path.join(trial.results_exp_path,
+                'ik', '%s_%s_ik_solution.mot' % (self.study.name, trial.id))
+        else:
+            raise Exception("TaskCMCSetup: %s is not a valid kinematics task "
+                "source, please choose 'rrakin' or 'ik'." % des_kinematics)
+        
+        # Set control constraints path (if any)
+        if self.control_constraints:
+            raise Exception("TaskCMCSetup: control constraints have yet to be "
+                "implemented.")
+        else:
+            self.control_constraints_fpath = ''
+
+        # TODO
+        # self.coord_act_fpath
+
+        # Fill out external_loads.xml template and copy over to results 
+        # directory
+        self.create_external_loads_action()
+
+        # Fill out tasks.xml template and copy over to results directory
+        self.create_tasks_action()
+
+    # Override derived action method since different desired kinematics
+    # may be specified 
+    def fill_external_loads_template(self, file_dep, target):
+        with open(file_dep[0]) as ft:
+            content = ft.read()
+            content = content.replace('@STUDYNAME@', self.study.name)
+            content = content.replace('@NAME@', self.trial.id)
+            content = content.replace('@DESKINEMATICS@', 
+                os.join.relpath(self.des_kinematics_fpath, self.path))
+
+        with open(target[0], 'w') as f:
+            f.write(content)
+
+    def fill_setup_template(self, file_dep, target, 
+                            init_time=None, final_time=None):
+        with open(file_dep[0]) as ft:
+            content = ft.read()
+            content = content.replace('@STUDYNAME@', self.study.name)
+            content = content.replace('@NAME@', self.trial.id)
+            content = content.replace('@MODEL@', 
+                os.path.relpath(self.adjusted_model_fpath, self.path))
+            content = content.replace('@INIT_TIME@', '%.4f' % init_time)
+            content = content.replace('@FINAL_TIME@', '%.4f' % final_time)
+            force_set_files = '%s %s' % (
+                os.path.relpath(self.study.cmc_actuators_fpath, self.path), 
+                os.path.relpath(self.subject.residual_actuators_fpath, 
+                    self.path))
+            content = content.replace('@FORCESETFILES@', force_set_files)
+            content = content.replace('@DESKINEMATICS@',
+                os.path.relpath(self.des_kinematics_fpath, self.path))
+            content = content.replace('@CONTROLCONSTRAINTS@', 
+                os.path.relpath(self.control_constraints_fpath, self.path))
+        
+        with open(target[0], 'w') as f:
+            f.write(content)
+
+class TaskCMC(task.ToolTask):
+    REGISTRY = []
+    def __init__(self, trial, cmc_setup_task, cycle=None):
+        super(TaskCMC, self).__init__(cmc_setup_task, trial, 
+            cycle=cycle)
+        self.doc = "Run OpenSim's Computed Muscle Control tool."
+        self.des_kinetics_fpath = \
+            '%s/expdata/ground_reaction_orig.mot' % trial.results_exp_path
+
+        self.file_dep += [
+            cmc_setup_task.adjusted_model_fpath,
+            cmc_setup_task.results_setup_fpath,
+            cmc_setup_task.results_extloads_fpath,
+            cmc_setup_task.results_tasks_fpath,
+            cmc_setup_task.des_kinematics_fpath,
+            self.des_kinetics_fpath,
+            self.subject.residual_actuators_fpath,
+            self.study.cmc_actuators_fpath
+            ]
+
+        if cmc_setup_task.control_constraints:
+            self.file_dep += [self.control_contraints_fpath]
+
+        # Set targets for all CMC outputs
+        for cmc_output in ['Actuation_force.sto',
+                'Actuation_power.sto', 'Actuation_speed.sto',
+                'avgResiduals.txt', 'controls.sto', 'controls.xml',
+                'Kinematics_dudt.sto', 'Kinematics_q.sto', 'Kinematics_u.sto',
+                'pErr.sto', 'states.sto']:
+
+            self.targets += ['%s/results/%s_%s_%s_%s' % (
+                self.path, self.study.name, cycle.id if cycle else trial.id, 
+                'cmc', cmc_output)]

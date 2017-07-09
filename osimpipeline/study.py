@@ -1,8 +1,8 @@
 import os
-
 import yaml
 
 from perimysium.dataman import GaitLandmarks
+from numpy import loadtxt
 
 import vital_tasks
 
@@ -17,25 +17,71 @@ class Cycle(object):
         self.num = num
         self.name = 'cycle%02i' % num
         self.metadata = metadata
-        self.rel_path = os.path.join(trial.rel_path, self.name)
         self.id = '_'.join([trial.id, self.name])
+        self.gl = gait_landmarks
+        self.start = gait_landmarks.cycle_start
+        self.end = gait_landmarks.cycle_end
+
+        self.tasks = list()
+
+    def add_task(self, cls, *args, **kwargs):
+        """Add a TrialTask for this cycle.
+            
+           TrialTasks for cycles can only be created
+           by Trial objects. 
+        """
+        if 'cycle' not in kwargs:
+            kwargs['cycle'] = self
+
+        task = cls(self.trial, *args, **kwargs)
+        self.tasks.append(task)
+        return task
 
 class Trial(object):
+    """Trials may have multiple cycles. If a condition has only one
+    trial, you can omit the unnecessary trial
+    directory using `omit_trial_dir`.
+
+    Examples
+    --------
+
+    ```
+    new_trial = cond.add_trial(1)
+
+    ```
+
+    ```
+    new_trial = cond.add_trial(1, start_time=0.0, end_time=0.5)
+
+    ```
+
+    ```
+    new_trial = cond.add_trial(1, right_strikes=[45.900, 47.000, 48.133]
+                                  right_toeoffs=[46.642, 47.758],  
+                                  left_strikes=[46.450, 47.567],
+                                  left_toeoffs=[46.075, 47.192],
+                                  omit_trial_dir=True)
+    ```
+    """
     def __init__(self, condition, num, metadata=None,
-            omit_trial_dir=False,
+            omit_trial_dir=False, primary_leg=False,
+            model_to_adjust_fpath=None,
+            start_time=None, end_time=None,
+            right_strikes=None, right_toeoffs=None,
+            left_strikes=None, left_toeoffs=None,
             ):
         self.condition = condition
         self.subject = condition.subject
         self.study = self.subject.study
         self.num = num
-        self.name = 'trial%02i' % num
+        self.name = 'trial%02i' % num 
         self.metadata = metadata
         self.cycles = list()
-
         self.rel_path = (condition.rel_path if omit_trial_dir else
                 os.path.join(condition.rel_path, self.name))
         self.results_exp_path = os.path.join(self.study.config['results_path'],
                 'experiments', self.rel_path)
+
         def list_condition_names():
             """Iterate through all conditions under which this trial sits."""
             cond_names = list()
@@ -53,76 +99,119 @@ class Trial(object):
         self.marker_trajectories_fpath = os.path.join(
                 self.expdata_path, 'marker_trajectories.trc')
         self.ground_reaction_fpath = os.path.join(
-                self.expdata_path, 'ground_reaction.mot')
-
+                self.expdata_path, 'ground_reaction_orig.mot')
+        # Model used by RRA to create adjusted model. By default, this is set 
+        # to the scaled model, but it can be set to a different model if the 
+        # scaled model must be modifed (adding a backpack, etc.)
+        self.model_to_adjust_fpath = (self.subject.scaled_model_fpath if 
+            not model_to_adjust_fpath else model_to_adjust_fpath)
         self.tasks = list()
-        # TODO self.add_task(vital_tasks.TaskGRFGaitLandmarks)
 
-    def add_task(self, cls, *args, **kwargs):
-        """Add a TrialTask for this trial
-        """
-        task = cls(self, *args, **kwargs)
-        self.tasks.append(task)
-        return task
+        # One type of time information input supported for a given trial
+        if (start_time or end_time) and (right_strikes or left_strikes):
+            raise Exception("Please specify either simulation time window "
+                "information (start_time, end_time) or gait cycle events "
+                "(right_strikes, etc.) both specified, but not both.")
+ 
+        # Determine gait cycle division and labeling
+        if not right_strikes and not left_strikes:
+            if not start_time:
+                start_time = self.get_mocap_start_time()
+            if not end_time:
+                end_time = self.get_mocap_end_time()
 
-class OvergroundTrial(Trial):
-    """Overground trials have just one cycle."""
-    def __init__(self, condition, num, metadata=None):
-        super(OvergroundTrial, self).__init__(condition, num,
-                metadata=metadata)
-                
-class TreadmillTrial(Trial):
-    """Treadmill trials may have multiple cycles. If a condition has only one
-    trial and it's a treadmill trial, you can omit the unnecessary trial
-    directory using `omit_trial_dir`.
-    
-    Example
-    -------
-    ```
-    trial = condition.add_treadmill_trial(1, omit_trial_dir=True)
-    ```
+            heel_strikes = [start_time, end_time]
 
-    The provided strike times are used to automatically create cycles.
-    """
-    def __init__(self, condition, num, 
-            right_strikes=None, right_toeoffs=None,
-            left_strikes=None, left_toeoffs=None,
-            metadata=None,
-            omit_trial_dir=False,
-            ):
-        super(TreadmillTrial, self).__init__(condition, num, metadata=metadata,
-                omit_trial_dir=omit_trial_dir)
+        elif ((right_strikes and not left_strikes) or 
+             (len(right_strikes) == len(left_strikes)+1)):
+            heel_strikes=right_strikes
+            primary_leg='right'
 
-        # Loop through provided times and create Cycles.
-        # TODO this code may not be sufficiently generic to go here.
-        if right_strikes:
-            for icycle in range(len(right_strikes) - 1):
-                cycle_num = icycle + 1
-                start = right_strikes[icycle]
-                end = right_strikes[icycle + 1]
-                gait_landmarks = GaitLandmarks(
-                        primary_leg='right',
-                        cycle_start=start,
-                        cycle_end=end,
-                        left_strike=left_strikes[icycle],
-                        left_toeoff=left_toeoffs[icycle],
-                        right_strike=start,
-                        right_toeoff=right_toeoffs[icycle],
-                        )
-                self._add_cycle(cycle_num, gait_landmarks)
+        elif ((left_strikes and not right_strikes) or 
+             (len(left_strikes) == len(right_strikes)+1)):
+            heel_strikes=left_strikes
+            primary_leg='left'
+
+        else:
+            raise Exception("Invalid gait landmarks specified: ensure "
+                "specified heel strikes and toeoffs are consistent "
+                "with an integer number of gait cycles.")
+
+        # Divide trial based on provided heel strikes and create individaul
+        # cycle objects. This also supports cases where the notion of a cycle
+        # may not exist (e.g. overground trials where only start and end times
+        # given).
+        for icycle in range(len(heel_strikes) - 1):
+            start = heel_strikes[icycle]
+            end = heel_strikes[icycle + 1]
+            gait_landmarks = GaitLandmarks(
+                    cycle_start=start,
+                    cycle_end=end,
+                    )
+            if primary_leg:
+                gait_landmarks.primary_leg = primary_leg
+            if left_strikes:
+                gait_landmarks.left_strike = left_strikes[icycle]
+            if left_toeoffs:
+                gait_landmarks.left_toeoff = left_toeoffs[icycle]
+            if right_strikes:
+                gait_landmarks.right_strike = right_strikes[icycle]
+            if right_toeoffs:
+                gait_landmarks.right_toeoff = right_toeoffs[icycle]
+
+            self._add_cycle(icycle+1, gait_landmarks)
+
+    def get_mocap_start_time(self):
+        mocap_data = loadtxt(self.marker_trajectories_fpath, skiprows=6)
+        # First row, second column.
+        return mocap_data[0][1]
+
+    def get_mocap_end_time(self):
+        mocap_data = loadtxt(self.marker_trajectories_fpath, skiprows=6)
+        # Last row, second column.
+        return mocap_data[-1][1]
 
     def _add_cycle(self, *args, **kwargs):
         cycle = Cycle(self, *args, **kwargs)
         assert not self.contains_cycle(cycle.num)
         self.cycles.append(cycle)
         return cycle
+
     def get_cycle(self, num):
         for cycle in self.cycles:
             if cycle.num == num:
                 return cycle
         return None
+
     def contains_cycle(self, num):
         return (self.get_cycle(num) != None)
+
+    def add_task(self, cls, *args, **kwargs):
+        """Add a TrialTask for this trial.
+        """
+        task = cls(self, *args, **kwargs)
+        self.tasks.append(task)
+        return task
+
+    def add_task_cycles(self, cls, *args, **kwargs):
+        """Add a TrialTask for each cycle in this trial.
+        """
+        orig_args = args
+        setup_tasks = None
+        if 'setup_tasks' in kwargs:
+            setup_tasks = kwargs['setup_tasks']
+            kwargs.pop('setup_tasks', None)
+
+        tasks = list()
+        for i, cycle in enumerate(self.cycles):
+
+            if setup_tasks:
+                args = orig_args + (setup_tasks[i],)
+
+            task = cycle.add_task(cls, *args, **kwargs)
+            tasks.append(task)
+
+        return tasks
 
 class Condition(object):
     """There can be multiple tiers of conditions; conditions can be nested
@@ -141,6 +230,8 @@ class Condition(object):
         self.name = name
         self.metadata = metadata
         self.rel_path = os.path.join(self.parent.rel_path, name)
+        self.results_exp_path = os.path.join(self.study.config['results_path'],
+            'experiments', self.rel_path)
         self.conditions = list()
         self.trials = list()
     def add_condition(self, *args, **kwargs):
@@ -156,36 +247,13 @@ class Condition(object):
         return None
     def contains_condition(self, name):
         return (self.get_condition(name) != None)
-    def add_overground_trial(self, *args, **kwargs):
-        """
-        Examples
-        --------
-        
-        ```
-        new_trial = cond.add_overground_trial(1)
-        ```
-        """
-        trial = OvergroundTrial(self, *args, **kwargs)
+
+    def add_trial(self, *args, **kwargs):
+        trial = Trial(self, *args, **kwargs)
         assert not self.contains_trial(trial.num)
         self.trials.append(trial)
         return trial
-    def add_treadmill_trial(self, *args, **kwargs):
-        """
-        Examples
-        --------
-        
-        ```
-        new_trial = cond.add_treadmill_trial(1, start_time, end_time)
-        ```
-        """
-        if 'use_type' in kwargs:
-            treadmill_trial_type = kwargs.pop('use_type')
-        else:
-            treadmill_trial_type = TreadmillTrial
-        trial = treadmill_trial_type(self, *args, **kwargs)
-        assert not self.contains_trial(trial.num)
-        self.trials.append(trial)
-        return trial
+       
     def get_trial(self, num):
         for t in self.trials:
             if t.num == num:
@@ -204,8 +272,12 @@ class Subject(object):
         # Relative path to the subject folder; can be used for the source
         # directory or the results directory.
         self.rel_path = self.name
-        self.scaled_model_fpath = os.path.join(study.config['results_path'],
-                'experiments', self.rel_path, '%s.osim' % self.name)
+        self.results_exp_path = os.path.join(self.study.config['results_path'],
+            'experiments', self.rel_path)
+        self.scaled_model_fpath = os.path.join(self.results_exp_path, 
+            '%s.osim' % self.name)
+        self.residual_actuators_fpath = os.path.join(self.results_exp_path, 
+            '%s_residual_actuators.xml' % self.name)
         self.conditions = list()
         self.tasks = list()
     def add_condition(self, *args, **kwargs):
@@ -252,9 +324,12 @@ class Study(object):
     repository, since different users might choose different values for these
     settings.
     """
-    def __init__(self, name, generic_model_fpath):
+    def __init__(self, name, generic_model_fpath, rra_actuators_fpath=None,
+        cmc_actuators_fpath=None):
         self.name = name
         self.source_generic_model_fpath = generic_model_fpath
+        self.source_rra_actuators_fpath = rra_actuators_fpath
+        self.source_cmc_actuators_fpath = cmc_actuators_fpath
         try:
             with open('config.yaml', 'r') as f:
                 self.config = yaml.load(f)
@@ -265,11 +340,15 @@ class Study(object):
         self.generic_model_fpath = os.path.join(self.config['results_path'],
                 'generic_model.osim')
                 #os.path.basename(generic_model_fpath))
+        self.rra_actuators_fpath = os.path.join(self.config['results_path'],
+                'rra_actuators.xml')
+        self.cmc_actuators_fpath = os.path.join(self.config['results_path'],
+                'cmc_actuators.xml')
 
         self.subjects = list() 
         self.tasks = list()
 
-        self.add_task(vital_tasks.TaskCopyGenericModelToResults)
+        #self.add_task(vital_tasks.TaskCopyGenericModelToResults)
 
     def add_subject(self, *args, **kwargs):
         subj = Subject(self, *args, **kwargs)
