@@ -121,6 +121,7 @@ class SetupTask(TrialTask):
         # Generate setup file based on whether or not a specific cycle has been
         # specified
         if self.cycle:
+            self.tricycle = self.cycle
             self.create_setup_deps = (True if self.cycle.name=='cycle01' else
                 False)
             self.name = '%s_%s_setup_%s' % (trial.id, self.tool, 
@@ -130,6 +131,7 @@ class SetupTask(TrialTask):
             self.init_time=self.cycle.start
             self.final_time=self.cycle.end
         else:
+            self.tricycle = trial
             self.create_setup_deps = True
             self.name = '%s_%s_setup' % (trial.id, self.tool)
             self.add_tool_dir()

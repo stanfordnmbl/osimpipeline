@@ -485,7 +485,7 @@ class TaskIKSetup(task.SetupTask):
         super(TaskIKSetup, self).__init__('ik', trial, **kwargs)
         self.doc = 'Create a setup file for Inverse Kinematics.'
         self.solution_fpath = os.path.join(self.path, 
-            '%s_%s_ik_solution.mot' % (self.study.name, trial.id))
+            '%s_%s_ik_solution.mot' % (self.study.name, self.tricycle.id))
         self.model_markers_fpath = os.path.join(self.path, 
             'ik_model_marker_locations.sto')
 
@@ -497,7 +497,7 @@ class TaskIKSetup(task.SetupTask):
         with open(file_dep[0]) as ft:
             content = ft.read()
             content = content.replace('@STUDYNAME@', self.study.name)
-            content = content.replace('@NAME@', self.trial.id)
+            content = content.replace('@NAME@', self.tricycle.id)
             content = content.replace('@MODEL@', 
                 os.path.relpath(self.subject.scaled_model_fpath, self.path))
             content = content.replace('@MARKER_FILE@',
@@ -512,8 +512,8 @@ class TaskIKSetup(task.SetupTask):
 
 class TaskIK(task.ToolTask):
     REGISTRY = []
-    def __init__(self, trial, ik_setup_task, cycle=None):
-        super(TaskIK, self).__init__(ik_setup_task, trial, cycle=cycle)
+    def __init__(self, trial, ik_setup_task, **kwargs):
+        super(TaskIK, self).__init__(ik_setup_task, trial, **kwargs)
         self.doc = "Run OpenSim's Inverse Kinematics tool."
         
         self.file_dep += [
@@ -529,8 +529,8 @@ class TaskIK(task.ToolTask):
 
 class TaskIKPost(task.PostTask):
     REGISTRY=[]
-    def __init__(self, trial, ik_setup_task, cycle=None, error_markers=None):
-        super(TaskIKPost, self).__init__(ik_setup_task, trial, cycle=cycle)
+    def __init__(self, trial, ik_setup_task, error_markers=None, **kwargs):
+        super(TaskIKPost, self).__init__(ik_setup_task, trial, **kwargs)
         self.doc = 'Create plots from the results of Inverse Kinematics.'
         self.joint_angles_plotpath = '%s/joint_angles.pdf' % self.path
         self.marker_errors_plotpath = '%s/marker_error.pdf' % self.path
@@ -578,7 +578,7 @@ class TaskIDSetup(task.SetupTask):
         with open(file_dep[0]) as ft:
             content = ft.read()
             content = content.replace('@STUDYNAME@', self.study.name)
-            content = content.replace('@NAME@', self.trial.id)
+            content = content.replace('@NAME@', self.tricycle.id)
             content = content.replace('@MODEL@', 
                 os.path.relpath(self.subject.scaled_model_fpath), self.path)
             content = content.replace('@INIT_TIME@', '%.4f' % init_time)
@@ -589,19 +589,19 @@ class TaskIDSetup(task.SetupTask):
 
 class TaskID(task.ToolTask):
     REGISTRY = []
-    def __init__(self, trial, id_setup_task, cycle=None):
-        super(TaskID, self).__init__(id_setup_task, trial, cycle=cycle)
+    def __init__(self, trial, id_setup_task, **kwargs):
+        super(TaskID, self).__init__(id_setup_task, trial, **kwargs)
         self.doc = "Run OpenSim's Inverse Dynamics tool."
         self.file_dep += [
                 self.subject.scaled_model_fpath,
                 id_setup_task.results_extloads_fpath,
                 id_setup_task.results_setup_fpath,
                 os.path.join(self.path, '%s_%s_ik_solution.mot' % (
-                    self.study.name, trial.id))
+                    self.study.name, id_setup_task.tricycle.id))
                 ]
         self.targets += [
                 os.path.join(self.path, '%s_%s_id_solution.mot' % (
-                    self.study.name, trial.id))
+                    self.study.name, id_setup_task.tricycle.id))
                 ]
 
 class TaskRRAModelSetup(task.SetupTask):
@@ -623,7 +623,7 @@ class TaskRRAModelSetup(task.SetupTask):
         with open(file_dep[0]) as ft:
             content = ft.read()
             content = content.replace('@STUDYNAME@', self.study.name)
-            content = content.replace('@NAME@', self.trial.id)
+            content = content.replace('@NAME@', self.tricycle.id)
             content = content.replace('@MODEL@', 
                 os.path.relpath(self.trial.model_to_adjust_fpath, self.path))
             content = content.replace('@INIT_TIME@', '%.4f' % init_time)
@@ -645,8 +645,7 @@ class TaskRRAModelSetup(task.SetupTask):
 class TaskRRAKinSetup(task.SetupTask):
     REGISTRY = []
     def __init__(self, trial, **kwargs):
-        super(TaskRRAKinSetup, self).__init__('rrakin', trial,
-            **kwargs)
+        super(TaskRRAKinSetup, self).__init__('rrakin', trial, **kwargs)
         self.doc = "Create a setup file for the Residual Reduction Algorithm tool to adjust kinematics."
 
         # Fill out external_loads.xml template and copy over to results 
@@ -661,7 +660,7 @@ class TaskRRAKinSetup(task.SetupTask):
         with open(file_dep[0]) as ft:
             content = ft.read()
             content = content.replace('@STUDYNAME@', self.study.name)
-            content = content.replace('@NAME@', self.trial.id)
+            content = content.replace('@NAME@', self.tricycle.id)
             content = content.replace('@MODEL@', 
                 os.join.relpath(self.adjusted_model_fpath, self.path))
             content = content.replace('@INIT_TIME@', '%.4f' % init_time)
@@ -677,12 +676,12 @@ class TaskRRAKinSetup(task.SetupTask):
 
 class TaskRRA(task.ToolTask):
     REGISTRY = []
-    def __init__(self, setup_task, trial, cycle=None):
-        super(TaskRRA, self).__init__(setup_task, trial, 
-            cycle=cycle, exec_name='rra')
+    def __init__(self, setup_task, trial, **kwargs):
+        kwargs['exec_name'] = 'rra'
+        super(TaskRRA, self).__init__(setup_task, trial, **kwargs)
         self.doc = "Abstract class for OpenSim's RRA tool."
         self.des_kinematics_fpath = '%s/ik/%s_%s_ik_solution.mot' % (
-            trial.results_exp_path, self.study.name, self.trial.id)
+            trial.results_exp_path, self.study.name, setup_task.tricycle.id)
         self.des_kinetics_fpath = \
             '%s/expdata/ground_reaction_orig.mot' % trial.results_exp_path
 
@@ -701,15 +700,15 @@ class TaskRRA(task.ToolTask):
                 'Kinematics_dudt.sto', 'Kinematics_q.sto', 'Kinematics_u.sto',
                 'pErr.sto', 'states.sto']:
             self.targets += ['%s/results/%s_%s_%s_%s' % (
-                self.path, self.study.name, cycle.id if cycle else trial.id,
+                self.path, self.study.name, setup_task.tricycle.id,
                 setup_task.tool, rra_output)]
 
 class TaskRRAModel(TaskRRA):
     REGISTRY = []
-    def __init__(self, trial, rramodel_setup_task, cycle=None, 
-                 reenable_probes=False):
-        super(TaskRRAModel, self).__init__(rramodel_setup_task,
-            trial, cycle=cycle)
+    def __init__(self, trial, rramodel_setup_task, reenable_probes=False, 
+            **kwargs):
+        super(TaskRRAModel, self).__init__(rramodel_setup_task, trial, 
+            **kwargs)
         self.doc = "Run OpenSim's RRA tool to create an adjusted model."
 
         # Set common file dependencies
@@ -751,9 +750,8 @@ class TaskRRAModel(TaskRRA):
 
 class TaskRRAKin(TaskRRA):
     REGISTRY = []
-    def __init__(self, trial, rrakin_setup_task, cycle=None):
-        super(TaskRRAKin, self).__init__(rrakin_setup_task, trial,
-            cycle=cycle)
+    def __init__(self, trial, rrakin_setup_task, **kwargs):
+        super(TaskRRAKin, self).__init__(rrakin_setup_task, trial, **kwargs)
         self.doc = "Run OpenSim's RRA tool to adjust model kinematics"
             
         # Set file dependencies
@@ -777,10 +775,11 @@ class TaskCMCSetup(task.SetupTask):
         if self.des_kinematics=='rrakin':
             self.des_kinematics_fpath = os.path.join(trial.results_exp_path, 
                 'rrakin', 'results',
-                '%s_%s_rrakin_Kinematics_q.sto' % (self.study.name, trial.id))
+                '%s_%s_rrakin_Kinematics_q.sto' % (self.study.name, 
+                    self.tricycle.id))
         elif self.des_kinematics=='ik':
             self.des_kinematics_fpath = os.path.join(trial.results_exp_path,
-                'ik', '%s_%s_ik_solution.mot' % (self.study.name, trial.id))
+                'ik', '%s_%s_ik_solution.mot' % (self.study.name, self.tricycle.id))
         else:
             raise Exception("TaskCMCSetup: %s is not a valid kinematics task "
                 "source, please choose 'rrakin' or 'ik'." % des_kinematics)
@@ -808,7 +807,7 @@ class TaskCMCSetup(task.SetupTask):
         with open(file_dep[0]) as ft:
             content = ft.read()
             content = content.replace('@STUDYNAME@', self.study.name)
-            content = content.replace('@NAME@', self.trial.id)
+            content = content.replace('@NAME@', self.tricycle.id)
             content = content.replace('@DESKINEMATICS@', 
                 os.join.relpath(self.des_kinematics_fpath, self.path))
 
@@ -820,7 +819,7 @@ class TaskCMCSetup(task.SetupTask):
         with open(file_dep[0]) as ft:
             content = ft.read()
             content = content.replace('@STUDYNAME@', self.study.name)
-            content = content.replace('@NAME@', self.trial.id)
+            content = content.replace('@NAME@', self.tricycle.id)
             content = content.replace('@MODEL@', 
                 os.path.relpath(self.adjusted_model_fpath, self.path))
             content = content.replace('@INIT_TIME@', '%.4f' % init_time)
@@ -840,9 +839,8 @@ class TaskCMCSetup(task.SetupTask):
 
 class TaskCMC(task.ToolTask):
     REGISTRY = []
-    def __init__(self, trial, cmc_setup_task, cycle=None):
-        super(TaskCMC, self).__init__(cmc_setup_task, trial, 
-            cycle=cycle)
+    def __init__(self, trial, cmc_setup_task, **kwargs):
+        super(TaskCMC, self).__init__(cmc_setup_task, trial, **kwargs)
         self.doc = "Run OpenSim's Computed Muscle Control tool."
         self.des_kinetics_fpath = \
             '%s/expdata/ground_reaction_orig.mot' % trial.results_exp_path
@@ -869,5 +867,13 @@ class TaskCMC(task.ToolTask):
                 'pErr.sto', 'states.sto']:
 
             self.targets += ['%s/results/%s_%s_%s_%s' % (
-                self.path, self.study.name, cycle.id if cycle else trial.id, 
+                self.path, self.study.name, cmc_setup_task.tricycle.id, 
                 'cmc', cmc_output)]
+
+class TaskMuscleRedundancySolverSetup(task.SetupTask):
+    REGISTRY = []
+    def __init__(self, trial, platform='matlab', **kwargs):
+        super(TaskMuscleRedundancySolverSetup, self).__init__('mrs', trial, 
+            **kwargs)
+        self.doc = "Create a setup file for the Muscle Redundancy Solver tool."
+        
