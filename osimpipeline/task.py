@@ -141,11 +141,12 @@ class SetupTask(TrialTask):
             self.init_time = first_cycle.start
             self.final_time = last_cycle.end
 
-        self.source_extloads_fpath = os.path.join(trial.rel_path, self.tool,
+        self.source_path = os.path.join(trial.rel_path, self.tool)
+        self.source_extloads_fpath = os.path.join(self.source_path,
             'external_loads.xml')
         self.results_extloads_fpath = os.path.join(self.path,
                 os.path.basename(self.source_extloads_fpath))
-        self.source_tasks_fpath = os.path.join(trial.rel_path, self.tool,
+        self.source_tasks_fpath = os.path.join(self.source_path,
             'tasks.xml')
         self.results_tasks_fpath = os.path.join(self.path, 
                 os.path.basename(self.source_tasks_fpath))
@@ -163,6 +164,7 @@ class SetupTask(TrialTask):
                     )
 
     def create_external_loads_action(self):
+        self.add_source_dir()
         if (not os.path.exists(self.source_extloads_fpath) and 
             self.create_setup_deps):
             # The user does not yet have a external_loads.xml in place; fill 
@@ -182,6 +184,7 @@ class SetupTask(TrialTask):
                     self.copy_file) 
 
     def create_tasks_action(self):
+        self.add_source_dir()
         if (not os.path.exists(self.source_tasks_fpath) and
             self.create_setup_deps):
             # The user does not yet have a tasks.xml in place; fill out the
@@ -231,6 +234,8 @@ class SetupTask(TrialTask):
         cycle_path = os.path.join(self.tool_path, self.cycle.name)
         if not os.path.exists(cycle_path): os.makedirs(cycle_path)
 
+    def add_source_dir(self):
+        if not os.path.exists(self.source_path): os.makedirs(self.source_path)
 
 class ToolTask(TrialTask):
     def __init__(self, setup_task, trial, cycle=None,

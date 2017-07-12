@@ -580,7 +580,7 @@ class TaskIDSetup(task.SetupTask):
             content = content.replace('@STUDYNAME@', self.study.name)
             content = content.replace('@NAME@', self.tricycle.id)
             content = content.replace('@MODEL@', 
-                os.path.relpath(self.subject.scaled_model_fpath), self.path)
+                os.path.relpath(self.subject.scaled_model_fpath, self.path))
             content = content.replace('@INIT_TIME@', '%.4f' % init_time)
             content = content.replace('@FINAL_TIME@', '%.4f' % final_time)
         
@@ -589,14 +589,14 @@ class TaskIDSetup(task.SetupTask):
 
 class TaskID(task.ToolTask):
     REGISTRY = []
-    def __init__(self, trial, id_setup_task, **kwargs):
+    def __init__(self, trial, id_setup_task, ik_setup_task, **kwargs):
         super(TaskID, self).__init__(id_setup_task, trial, **kwargs)
         self.doc = "Run OpenSim's Inverse Dynamics tool."
         self.file_dep += [
                 self.subject.scaled_model_fpath,
                 id_setup_task.results_extloads_fpath,
                 id_setup_task.results_setup_fpath,
-                os.path.join(self.path, '%s_%s_ik_solution.mot' % (
+                os.path.join(ik_setup_task.path, '%s_%s_ik_solution.mot' % (
                     self.study.name, id_setup_task.tricycle.id))
                 ]
         self.targets += [
@@ -872,8 +872,16 @@ class TaskCMC(task.ToolTask):
 
 class TaskMuscleRedundancySolverSetup(task.SetupTask):
     REGISTRY = []
-    def __init__(self, trial, platform='matlab', **kwargs):
+    def __init__(self, trial, **kwargs):
         super(TaskMuscleRedundancySolverSetup, self).__init__('mrs', trial, 
             **kwargs)
         self.doc = "Create a setup file for the Muscle Redundancy Solver tool."
-        
+        self.kinematics_file = os.path.join(self.trial.results_exp_path, 'ik',
+                '%s_%s_ik_solution.mot' % (self.study.name, self.trial.id))
+        self.rel_kinematics_file = os.path.relpath(self.kinematics_file,
+                self.path)
+        self.kinetics_file = os.path.join(self.trial.results_exp_path,
+                'id', 'results', '%s_%s_id_solution.sto' % ( self.study.name,
+                    self.trial.id))
+        self.rel_kinetics_file = os.path.relpath( self.kinetics_file,
+                self.path)
