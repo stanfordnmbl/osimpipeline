@@ -34,7 +34,6 @@ class TaskCopyGenericModelFilesToResults(task.StudyTask):
                 self.copy_file)
 
 
-
 class TaskCopyMotionCaptureData(task.StudyTask):
     """This a very generic task for copying motion capture data (marker
     trajectories, ground reaction, electromyography) and putting it in
@@ -492,6 +491,9 @@ class TaskIKSetup(task.SetupTask):
         # Fill out tasks.xml template and copy over to results directory
         self.create_tasks_action()
 
+        # Fill out setup.xml template and write to results directory
+        self.create_setup_action()
+
     def fill_setup_template(self, file_dep, target,
                             init_time=None, final_time=None):
         with open(file_dep[0]) as ft:
@@ -573,6 +575,9 @@ class TaskIDSetup(task.SetupTask):
         # directory
         self.create_external_loads_action()
 
+        # Fill out setup.xml template and write to results directory
+        self.create_setup_action()
+
     def fill_setup_template(self, file_dep, target,
                             init_time=None, final_time=None):
         with open(file_dep[0]) as ft:
@@ -618,6 +623,9 @@ class TaskRRAModelSetup(task.SetupTask):
         # Fill out tasks.xml template and copy over to results directory
         self.create_tasks_action()
 
+        # Fill out setup.xml template and write to results directory
+        self.create_setup_action()
+
     def fill_setup_template(self, file_dep, target,
                             init_time=None, final_time=None):
         with open(file_dep[0]) as ft:
@@ -654,6 +662,9 @@ class TaskRRAKinSetup(task.SetupTask):
 
         # Fill out tasks.xml template and copy over to results directory
         self.create_tasks_action()
+
+        # Fill out setup.xml template and write to results directory
+        self.create_setup_action()
 
     def fill_setup_template(self, file_dep, target,
                             init_time=None, final_time=None):
@@ -801,6 +812,9 @@ class TaskCMCSetup(task.SetupTask):
         # Fill out tasks.xml template and copy over to results directory
         self.create_tasks_action()
 
+        # Fill out setup.xml template and write to results directory
+        self.create_setup_action()
+
     # Override derived action method since different desired kinematics
     # may be specified 
     def fill_external_loads_template(self, file_dep, target):
@@ -885,3 +899,44 @@ class TaskMuscleRedundancySolverSetup(task.SetupTask):
                     self.trial.id))
         self.rel_kinetics_file = os.path.relpath( self.kinetics_file,
                 self.path)
+        self.results_setup_fpath = os.path.join(self.path, 'setup.m')  
+        self.optctrlmuscle_path = self.study.config['optctrlmuscle_path']
+
+        # Fill out setup.m template and write to results directory
+        self.create_setup_action()
+
+    def create_setup_action(self): 
+        self.add_action(
+                    ['templates/%s/setup.m' % self.tool],
+                    [self.results_setup_fpath],
+                    self.fill_setup_template,  
+                    init_time=self.init_time,
+                    final_time=self.final_time,      
+                    )
+
+    def fill_setup_template(self, file_dep, target,
+                            init_time=None, final_time=None):
+        with open(file_dep[0]) as ft:
+            content = ft.read()
+            content = content.replace('@STUDYNAME@', self.study.name)
+            content = content.replace('@NAME@', self.tricycle.id)
+            # TODO should this be an RRA-adjusted model?
+            content = content.replace('@MODEL@', os.path.relpath(
+                self.subject.scaled_model_fpath, self.path))
+            content = content.replace('@REL_PATH_TO_TOOL@', os.path.relpath(
+                self.optctrlmuscle_path, self.path))
+            # TODO provide slop on either side? start before the cycle_start?
+            # end after the cycle_end?
+            content = content.replace('@INIT_TIME@',
+                    '%.5f' % init_time)
+            content = content.replace('@FINAL_TIME@', 
+                    '%.5f' % final_time)
+            content = content.replace('@IK_SOLUTION@',
+                    self.rel_kinematics_file)
+            content = content.replace('@ID_SOLUTION@',
+                    self.rel_kinetics_file)
+            content = content.replace('@SIDE@',
+                    self.trial.primary_leg)
+
+        with open(target[0], 'w') as f:
+            f.write(content)

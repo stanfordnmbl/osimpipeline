@@ -81,6 +81,7 @@ class Trial(object):
                 os.path.join(condition.rel_path, self.name))
         self.results_exp_path = os.path.join(self.study.config['results_path'],
                 'experiments', self.rel_path)
+        self.primary_leg=None
 
         def list_condition_names():
             """Iterate through all conditions under which this trial sits."""
@@ -125,12 +126,12 @@ class Trial(object):
         elif ((right_strikes and not left_strikes) or 
              (len(right_strikes) == len(left_strikes)+1)):
             heel_strikes=right_strikes
-            primary_leg='right'
+            self.primary_leg='right'
 
         elif ((left_strikes and not right_strikes) or 
              (len(left_strikes) == len(right_strikes)+1)):
             heel_strikes=left_strikes
-            primary_leg='left'
+            self.primary_leg='left'
 
         else:
             raise Exception("Invalid gait landmarks specified: ensure "
@@ -148,8 +149,8 @@ class Trial(object):
                     cycle_start=start,
                     cycle_end=end,
                     )
-            if primary_leg:
-                gait_landmarks.primary_leg = primary_leg
+            if self.primary_leg:
+                gait_landmarks.primary_leg = self.primary_leg
             if left_strikes:
                 gait_landmarks.left_strike = left_strikes[icycle]
             if left_toeoffs:

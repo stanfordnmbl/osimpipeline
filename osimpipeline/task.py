@@ -153,8 +153,9 @@ class SetupTask(TrialTask):
         self.adjusted_model = '%s_adjusted.osim' % self.subject.name    
         self.adjusted_model_fpath = os.path.join(self.path, 
             self.adjusted_model)
-        self.results_setup_fpath = os.path.join(self.path, 'setup.xml')   
+        self.results_setup_fpath = os.path.join(self.path, 'setup.xml')  
 
+    def create_setup_action(self): 
         self.add_action(
                     ['templates/%s/setup.xml' % self.tool],
                     [self.results_setup_fpath],
