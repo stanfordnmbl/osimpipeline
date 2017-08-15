@@ -4,26 +4,7 @@ import yaml
 from numpy import loadtxt
 
 import vital_tasks
-
-class GaitLandmarks(object):
-    def __init__(self,
-            primary_leg=None,
-            cycle_start=None,
-            cycle_end=None,
-            left_strike=None,
-            left_toeoff=None,
-            right_strike=None,
-            right_toeoff=None):
-        self.primary_leg  = primary_leg
-        self.cycle_start  = cycle_start
-        self.cycle_end    = cycle_end
-        self.left_strike  = left_strike
-        self.left_toeoff  = left_toeoff
-        self.right_strike = right_strike
-        self.right_toeoff = right_toeoff
-
-    def cycle_duration(self):
-        return self.cycle_end - self.cycle_start
+import utilities 
 
 class Cycle(object):
     """A subject may walk for multiple gait cycles in a given trial,
@@ -84,10 +65,12 @@ class Trial(object):
     Use the 'gait_events' dictionary argument to provide the events
     corresponding to individual gait cycles within a trial. A TrialTask will
     be created for each individual cycle. Either the 'right_strikes' or
-    'left_strikes' entry is required to create gait cycles. If the desired gait
-    cycles in the trial are not consecutive, then the 'stride_times' entry is 
-    also required. The opposite foot heel strikes and toeoffs from both feet
-    can be included as optional dictionary entries.
+    'left_strikes' entry is required to create gait cycles. If both are
+    provided, then the primary leg must have one more heel strike than the
+    opposite leg for consistency and automatic primary leg detection. If the
+    desired gait cycles in the trial are not consecutive, then the
+    'stride_times' entry is also required. The opposite foot heel strikes and
+    toeoffs from both feet can be included as optional dictionary entries.
 
     ```
     gait_events = dict()
@@ -205,7 +188,7 @@ class Trial(object):
                 end = start + self.stride_times[icycle]
             else:
                 end = self.heel_strikes[icycle + 1]
-            gait_landmarks = GaitLandmarks(
+            gait_landmarks = utilities.GaitLandmarks(
                     cycle_start=start,
                     cycle_end=end,
                     )
@@ -274,7 +257,7 @@ class Trial(object):
             if (("Inverse Kinematics" in task.doc) or 
                 ("Inverse Dynamics" in task.doc)):
                 raise Exception("TrialTask creation for individual cycles not "
-                    " current supported for the Inverse Kinematics and "
+                    " currently supported for the Inverse Kinematics and "
                     " Inverse Dynamics tools")
 
             tasks.append(task)

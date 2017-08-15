@@ -6,23 +6,10 @@ from numpy import loadtxt
 import shutil
 import pylab as pl
 
+import utilities 
+
 # Import postprocessing subroutines
 from postprocessing import plot_lower_limb_kinematics, plot_marker_error
-
-class working_directory():
-    """Use this to temporarily run code with some directory as a working
-    directory and to then return to the original working directory::
-
-        with working_directory('<dir>'):
-            pass
-    """
-    def __init__(self, path):
-        self.path = path
-        self.original_working_dir = os.getcwd()
-    def __enter__(self):
-        os.chdir(self.path)
-    def __exit__(self, *exc_info):
-        os.chdir(self.original_working_dir)
 
 class TaskCopyGenericModelFilesToResults(task.StudyTask):
     REGISTRY = []
@@ -984,12 +971,13 @@ class TaskMRSDeGrooteSetup(task.SetupTask):
 class TaskMRSDeGroote(task.ToolTask):
     REGISTRY = []
     def __init__(self, trial, mrs_setup_task, **kwargs):
-        kwargs['opensim'] = False
-        super(TaskMRSDeGroote, self).__init__(mrs_setup_task, trial, **kwargs)
+        super(TaskMRSDeGroote, self).__init__(mrs_setup_task, trial, 
+            opensim=False, **kwargs)
         self.doc = 'Run DeGroote Muscle Redundancy Solver in MATLAB.'
+        self.results_setup_fpath  = os.path.join(self.path, 'setup.m')
 
         self.file_dep += [
-                os.path.join(self.path, 'setup.m'),
+                self.results_setup_fpath,
                 self.subject.scaled_model_fpath,
                 mrs_setup_task.kinematics_file,
                 mrs_setup_task.kinetics_file,
@@ -1005,15 +993,15 @@ class TaskMRSDeGroote(task.ToolTask):
                 ]
 
     def run_matlab(self):
-        with working_directory(self.path):
+        with utilities.working_directory(self.path):
             # On Mac, CmdAction was causing MATLAB ipopt with GPOPS output to
             # not display properly.
 
             status = os.system('matlab -nodisplay -nodesktop -nosplash '
-                    '-automation -logfile matlab_log.txt -r "try, '
+                    '-logfile matlab_log.txt -r "try, '
                     "run('%s'); disp('SUCCESS'); "
                     'catch ME; disp(getReport(ME)); exit(2), end, exit(0);"\n'
-                    % (script_path.replace('\\','/'))
+                    % (self.results_setup_fpath.replace('\\','/'))
                     )
             if status != 0:
                 raise Exception('Non-zero exit status.')
@@ -1034,7 +1022,7 @@ class TaskMRSDeGrootePost(task.PostTask):
 
         from doit.action import CmdAction
         command = CmdAction('matlab -nodisplay -nodesktop -nosplash '
-                '-automation -logfile matlab_log_postprocess.txt -r "try, '
+                '-logfile matlab_log_postprocess.txt -r "try, '
                 "postprocess; disp('SUCCESS'); "
                 'catch ME; disp(getReport(ME)); exit(2), end, exit(0);"',
                 cwd=os.path.abspath(self.path))
