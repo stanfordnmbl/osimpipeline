@@ -902,7 +902,9 @@ class TaskMRSDeGrooteSetup(task.SetupTask):
         self.rel_kinetics_file = os.path.relpath(self.kinetics_file,
                 self.path)
         self.results_setup_fpath = os.path.join(self.path, 'setup.m')
-        self.results_post_fpath = os.path.join(self.path, 'postprocess.m') 
+        self.results_post_fpath = os.path.join(self.path, 'postprocess.m')
+        self.results_output_fpath = os.path.join(self.path, '%s_%s_mrs.mat' % (
+            self.study.name, self.tricycle.id)) 
         self.optctrlmuscle_path = self.study.config['optctrlmuscle_path']
 
         self.file_dep += [
@@ -950,7 +952,7 @@ class TaskMRSDeGrooteSetup(task.SetupTask):
             content = content.replace('@ID_SOLUTION@',
                     self.rel_kinetics_file)
             content = content.replace('@SIDE@',
-                    self.trial.primary_leg)
+                    self.trial.primary_leg[0])
 
         with open(target[0], 'w') as f:
             f.write(content)
@@ -974,7 +976,7 @@ class TaskMRSDeGroote(task.ToolTask):
         super(TaskMRSDeGroote, self).__init__(mrs_setup_task, trial, 
             opensim=False, **kwargs)
         self.doc = 'Run DeGroote Muscle Redundancy Solver in MATLAB.'
-        self.results_setup_fpath  = os.path.join(self.path, 'setup.m')
+        self.results_setup_fpath  = mrs_setup_task.results_setup_fpath
 
         self.file_dep += [
                 self.results_setup_fpath,
@@ -988,8 +990,7 @@ class TaskMRSDeGroote(task.ToolTask):
                 ]
 
         self.targets += [
-                os.path.join(self.path, '%s_%s_mrs.mat' % (self.study.name,
-                    mrs_setup_task.tricycle.id))
+                mrs_setup_task.results_output_fpath,
                 ]
 
     def run_matlab(self):
@@ -998,10 +999,11 @@ class TaskMRSDeGroote(task.ToolTask):
             # not display properly.
 
             status = os.system('matlab -nodisplay -nodesktop -nosplash '
-                    '-logfile matlab_log.txt -r "try, '
+                    '%s -logfile matlab_log.txt -r "try, '
                     "run('%s'); disp('SUCCESS'); "
                     'catch ME; disp(getReport(ME)); exit(2), end, exit(0);"\n'
-                    % (self.results_setup_fpath.replace('\\','/'))
+                    % ('-automation' if os.name == 'nt' else '',
+                       self.results_setup_fpath.replace('\\','/'))
                     )
             if status != 0:
                 raise Exception('Non-zero exit status.')
@@ -1015,17 +1017,19 @@ class TaskMRSDeGrootePost(task.PostTask):
         self.id = mrs_setup_task.tricycle.id
 
         self.file_dep += [
-                os.path.join(self.path, 'postprocess.m'),
-                os.path.join(self.path, '%s_%s_mrs.mat' % (self.study.name,
-                    self.id)),
+                mrs_setup_task.results_post_fpath,
+                mrs_setup_task.results_output_fpath,
                 ]
 
         from doit.action import CmdAction
         command = CmdAction('matlab -nodisplay -nodesktop -nosplash '
-                '-logfile matlab_log_postprocess.txt -r "try, '
-                "postprocess; disp('SUCCESS'); "
-                'catch ME; disp(getReport(ME)); exit(2), end, exit(0);"',
+                    '%s -logfile matlab_log.txt -r "try, '
+                    "run('%s'); disp('SUCCESS'); "
+                    'catch ME; disp(getReport(ME)); exit(2), end, exit(0);"\n'
+                    % ('-automation' if os.name == 'nt' else '',
+                       mrs_setup_task.results_post_fpath.replace('\\','/')),
                 cwd=os.path.abspath(self.path))
+
         self.actions += [
                 command,
                 self.plot_results,

@@ -1,4 +1,6 @@
 
+import os
+
 class working_directory():
     """Use this to temporarily run code with some directory as a working
     directory and to then return to the original working directory::
