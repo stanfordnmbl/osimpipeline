@@ -141,19 +141,21 @@ class SetupTask(TrialTask):
             self.init_time = first_cycle.start
             self.final_time = last_cycle.end
 
-        self.source_extloads_fpath = os.path.join(trial.rel_path, self.tool,
+        self.source_path = os.path.join(trial.rel_path, self.tool)
+        self.source_extloads_fpath = os.path.join(self.source_path,
             'external_loads.xml')
         self.results_extloads_fpath = os.path.join(self.path,
                 os.path.basename(self.source_extloads_fpath))
-        self.source_tasks_fpath = os.path.join(trial.rel_path, self.tool,
+        self.source_tasks_fpath = os.path.join(self.source_path,
             'tasks.xml')
         self.results_tasks_fpath = os.path.join(self.path, 
                 os.path.basename(self.source_tasks_fpath))
         self.adjusted_model = '%s_adjusted.osim' % self.subject.name    
         self.adjusted_model_fpath = os.path.join(self.path, 
             self.adjusted_model)
-        self.results_setup_fpath = os.path.join(self.path, 'setup.xml')   
+        self.results_setup_fpath = os.path.join(self.path, 'setup.xml')  
 
+    def create_setup_action(self): 
         self.add_action(
                     ['templates/%s/setup.xml' % self.tool],
                     [self.results_setup_fpath],
@@ -163,6 +165,7 @@ class SetupTask(TrialTask):
                     )
 
     def create_external_loads_action(self):
+        self.add_source_dir()
         if (not os.path.exists(self.source_extloads_fpath) and 
             self.create_setup_deps):
             # The user does not yet have a external_loads.xml in place; fill 
@@ -182,6 +185,7 @@ class SetupTask(TrialTask):
                     self.copy_file) 
 
     def create_tasks_action(self):
+        self.add_source_dir()
         if (not os.path.exists(self.source_tasks_fpath) and
             self.create_setup_deps):
             # The user does not yet have a tasks.xml in place; fill out the
@@ -231,10 +235,12 @@ class SetupTask(TrialTask):
         cycle_path = os.path.join(self.tool_path, self.cycle.name)
         if not os.path.exists(cycle_path): os.makedirs(cycle_path)
 
+    def add_source_dir(self):
+        if not os.path.exists(self.source_path): os.makedirs(self.source_path)
 
 class ToolTask(TrialTask):
     def __init__(self, setup_task, trial, cycle=None,
-                 exec_name=None, cmd=None, env=None):
+                 exec_name=None, cmd=None, env=None, opensim=True):
         super(ToolTask, self).__init__(trial)
         self.exec_name = exec_name
         self.cmd = cmd
@@ -246,24 +252,27 @@ class ToolTask(TrialTask):
         else:
             self.name = '%s_%s' % (trial.id, setup_task.tool)
 
-        self.file_dep = [
+        if opensim:
+            self.file_dep = [
                 '%s/setup.xml' % self.path
                 ]
 
-        if self.exec_name == None:
-            self.exec_name = setup_task.tool
-        if self.cmd == None:
-            cmd_action = CmdAction('"' + os.path.join(
-                self.study.config['opensim_home'],'bin',self.exec_name)
-                + '" -S setup.xml',
-                cwd=os.path.abspath(self.path),
-                env=self.env)
-        else:
-            cmd_action = CmdAction(self.cmd, cwd=os.path.abspath(self.path),
+            if self.exec_name == None:
+                self.exec_name = setup_task.tool
+
+            if self.cmd == None:
+                cmd_action = CmdAction('"' + os.path.join(
+                    self.study.config['opensim_home'],'bin',self.exec_name)
+                    + '" -S setup.xml',
+                    cwd=os.path.abspath(self.path),
                     env=self.env)
-        self.actions = [
-                cmd_action,
-                ]
+            else:
+                cmd_action = CmdAction(self.cmd, 
+                    cwd=os.path.abspath(self.path), env=self.env)
+
+            self.actions = [
+                    cmd_action,
+                    ]
 
 class PostTask(TrialTask):
     def __init__(self, setup_task, trial, cycle=None):

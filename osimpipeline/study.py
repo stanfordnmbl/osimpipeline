@@ -1,10 +1,10 @@
 import os
 import yaml
 
-from perimysium.dataman import GaitLandmarks
 from numpy import loadtxt
 
 import vital_tasks
+import utilities 
 
 class Cycle(object):
     """A subject may walk for multiple gait cycles in a given trial,
@@ -44,31 +44,49 @@ class Trial(object):
 
     Examples
     --------
-
+    Passing no arguments creates a single trial object that begins and ends
+    with the times specified in the mocap data.
     ```
     new_trial = cond.add_trial(1)
 
     ```
 
+    Use the 'interval' dictionary argument to pick a specific start and/or end
+    time. The beginning or end time in the mocap file will be chosen if the
+    start or end time is left out of the argument, respectively.
     ```
-    new_trial = cond.add_trial(1, start_time=0.0, end_time=0.5)
+    interval = dict()
+    interval['start_time'] = 0.0
+    interval['end_time'] = 0.5
+    new_trial = cond.add_trial(1, interval=interval)
 
     ```
 
+    Use the 'gait_events' dictionary argument to provide the events
+    corresponding to individual gait cycles within a trial. A TrialTask will
+    be created for each individual cycle. Either the 'right_strikes' or
+    'left_strikes' entry is required to create gait cycles. If both are
+    provided, then the primary leg must have one more heel strike than the
+    opposite leg for consistency and automatic primary leg detection. If the
+    desired gait cycles in the trial are not consecutive, then the
+    'stride_times' entry is also required. The opposite foot heel strikes and
+    toeoffs from both feet can be included as optional dictionary entries.
+
     ```
-    new_trial = cond.add_trial(1, right_strikes=[45.900, 47.000, 48.133]
-                                  right_toeoffs=[46.642, 47.758],  
-                                  left_strikes=[46.450, 47.567],
-                                  left_toeoffs=[46.075, 47.192],
+    gait_events = dict()
+    gait_events['right_strikes'] = [24.575, 30.650, 32.683, 33.683]
+    gait_events['right_toeoffs'] = [25.242, 31.317, 33.342]
+    gait_events['left_toeoffs']  = [24.742, 30.808, 32.842]
+    gait_events['stride_times'] = [1.015, 1.021, 1.096]
+    new_trial = cond.add_trial(1, gait_events=gait_events,
                                   omit_trial_dir=True)
+
     ```
     """
     def __init__(self, condition, num, metadata=None,
-            omit_trial_dir=False, primary_leg=False,
+            omit_trial_dir=False, primary_leg=None,
             model_to_adjust_fpath=None,
-            start_time=None, end_time=None,
-            right_strikes=None, right_toeoffs=None,
-            left_strikes=None, left_toeoffs=None,
+            interval=None, gait_events=None,
             ):
         self.condition = condition
         self.subject = condition.subject
@@ -81,6 +99,14 @@ class Trial(object):
                 os.path.join(condition.rel_path, self.name))
         self.results_exp_path = os.path.join(self.study.config['results_path'],
                 'experiments', self.rel_path)
+        self.primary_leg = primary_leg
+        self.right_strikes = None
+        self.right_toeoffs = None
+        self.left_strikes = None
+        self.left_toeoffs = None
+        self.stride_times = None
+        self.start_time = None
+        self.end_time = None
 
         def list_condition_names():
             """Iterate through all conditions under which this trial sits."""
@@ -108,56 +134,74 @@ class Trial(object):
         self.tasks = list()
 
         # One type of time information input supported for a given trial
-        if (start_time or end_time) and (right_strikes or left_strikes):
-            raise Exception("Please specify either simulation time window "
-                "information (start_time, end_time) or gait cycle events "
-                "(right_strikes, etc.) both specified, but not both.")
- 
-        # Determine gait cycle division and labeling
-        if not right_strikes and not left_strikes:
-            if not start_time:
-                start_time = self.get_mocap_start_time()
+        if interval:
+            self.start_time = interval.get('start_time')
+            self.end_time = interval.get('end_time')
+
+            if not self.start_time:
+                self.start_time = self.get_mocap_start_time()
             if not end_time:
-                end_time = self.get_mocap_end_time()
+                self.end_time = self.get_mocap_end_time()
 
-            heel_strikes = [start_time, end_time]
+        elif gait_events:
+            self.right_strikes = gait_events.get('right_strikes')
+            self.right_toeoffs = gait_events.get('right_toeoffs')
+            self.left_strikes = gait_events.get('left_strikes')
+            self.left_toeoffs = gait_events.get('left_toeoffs')
+            self.stride_times = gait_events.get('stride_times')
 
-        elif ((right_strikes and not left_strikes) or 
-             (len(right_strikes) == len(left_strikes)+1)):
-            heel_strikes=right_strikes
-            primary_leg='right'
+            # Determine gait cycle division and labeling
+            if not self.right_strikes and not self.left_strikes:
+                self.heel_strikes = [self.start_time, self.end_time]
 
-        elif ((left_strikes and not right_strikes) or 
-             (len(left_strikes) == len(right_strikes)+1)):
-            heel_strikes=left_strikes
-            primary_leg='left'
+            elif ((self.right_strikes and not self.left_strikes) or 
+                 (len(self.right_strikes) == len(self.left_strikes)+1)):
+                self.heel_strikes = self.right_strikes
+                self.primary_leg = 'right'
 
-        else:
-            raise Exception("Invalid gait landmarks specified: ensure "
-                "specified heel strikes and toeoffs are consistent "
-                "with an integer number of gait cycles.")
+            elif ((self.left_strikes and not self.right_strikes) or 
+                 (len(self.left_strikes) == len(self.right_strikes)+1)):
+                self.heel_strikes = self.left_strikes
+                self.primary_leg='left'
+
+            else:
+                raise Exception("Invalid gait landmarks specified: ensure "
+                    "specified heel strikes and toeoffs are consistent "
+                    "with an integer number of gait cycles.")
+
+        elif not interval and not gait_events:
+            self.start_time = self.get_mocap_start_time()
+            self.end_time = self.get_mocap_end_time()
+            self.heel_strikes = [self.start_time, self.end_time]
+
+        elif interval and gait_events:
+            raise Exception("Please specify either simulation time "
+                "interval or gait cycle events, but not both.")
 
         # Divide trial based on provided heel strikes and create individaul
         # cycle objects. This also supports cases where the notion of a cycle
         # may not exist (e.g. overground trials where only start and end times
         # given).
-        for icycle in range(len(heel_strikes) - 1):
-            start = heel_strikes[icycle]
-            end = heel_strikes[icycle + 1]
-            gait_landmarks = GaitLandmarks(
+        for icycle in range(len(self.heel_strikes) - 1):
+            start = self.heel_strikes[icycle]
+            if self.stride_times:
+                end = start + self.stride_times[icycle]
+            else:
+                end = self.heel_strikes[icycle + 1]
+            gait_landmarks = utilities.GaitLandmarks(
                     cycle_start=start,
                     cycle_end=end,
                     )
-            if primary_leg:
-                gait_landmarks.primary_leg = primary_leg
-            if left_strikes:
-                gait_landmarks.left_strike = left_strikes[icycle]
-            if left_toeoffs:
-                gait_landmarks.left_toeoff = left_toeoffs[icycle]
-            if right_strikes:
-                gait_landmarks.right_strike = right_strikes[icycle]
-            if right_toeoffs:
-                gait_landmarks.right_toeoff = right_toeoffs[icycle]
+            if self.primary_leg:
+                gait_landmarks.primary_leg = self.primary_leg
+            if self.left_strikes:
+                gait_landmarks.left_strike = self.left_strikes[icycle]
+            if self.left_toeoffs:
+                gait_landmarks.left_toeoff = self.left_toeoffs[icycle]
+            if self.right_strikes:
+                gait_landmarks.right_strike = self.right_strikes[icycle]
+            if self.right_toeoffs:
+                gait_landmarks.right_toeoff = self.right_toeoffs[icycle]
 
             self._add_cycle(icycle+1, gait_landmarks)
 
@@ -209,6 +253,13 @@ class Trial(object):
                 args = orig_args + (setup_tasks[i],)
 
             task = cycle.add_task(cls, *args, **kwargs)
+
+            if (("Inverse Kinematics" in task.doc) or 
+                ("Inverse Dynamics" in task.doc)):
+                raise Exception("TrialTask creation for individual cycles not "
+                    " currently supported for the Inverse Kinematics and "
+                    " Inverse Dynamics tools")
+
             tasks.append(task)
 
         return tasks

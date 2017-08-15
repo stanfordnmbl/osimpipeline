@@ -6,9 +6,10 @@ from numpy import loadtxt
 import shutil
 import pylab as pl
 
+import utilities 
+
 # Import postprocessing subroutines
 from postprocessing import plot_lower_limb_kinematics, plot_marker_error
-
 
 class TaskCopyGenericModelFilesToResults(task.StudyTask):
     REGISTRY = []
@@ -32,7 +33,6 @@ class TaskCopyGenericModelFilesToResults(task.StudyTask):
                 [study.source_cmc_actuators_fpath],
                 [study.cmc_actuators_fpath],
                 self.copy_file)
-
 
 
 class TaskCopyMotionCaptureData(task.StudyTask):
@@ -492,6 +492,9 @@ class TaskIKSetup(task.SetupTask):
         # Fill out tasks.xml template and copy over to results directory
         self.create_tasks_action()
 
+        # Fill out setup.xml template and write to results directory
+        self.create_setup_action()
+
     def fill_setup_template(self, file_dep, target,
                             init_time=None, final_time=None):
         with open(file_dep[0]) as ft:
@@ -565,13 +568,17 @@ class TaskIKPost(task.PostTask):
     
 class TaskIDSetup(task.SetupTask):
     REGISTRY = []
-    def __init__(self, trial, **kwargs):
+    def __init__(self, trial, ik_setup_task, **kwargs):
         super(TaskIDSetup, self).__init__('id', trial, **kwargs)
         self.doc = 'Create a setup file for Inverse Dynamics.'
+        self.ik_setup_task = ik_setup_task
 
         # Fill out external_loads.xml template and copy over to results 
         # directory
         self.create_external_loads_action()
+
+        # Fill out setup.xml template and write to results directory
+        self.create_setup_action()
 
     def fill_setup_template(self, file_dep, target,
                             init_time=None, final_time=None):
@@ -580,7 +587,7 @@ class TaskIDSetup(task.SetupTask):
             content = content.replace('@STUDYNAME@', self.study.name)
             content = content.replace('@NAME@', self.tricycle.id)
             content = content.replace('@MODEL@', 
-                os.path.relpath(self.subject.scaled_model_fpath), self.path)
+                os.path.relpath(self.subject.scaled_model_fpath, self.path))
             content = content.replace('@INIT_TIME@', '%.4f' % init_time)
             content = content.replace('@FINAL_TIME@', '%.4f' % final_time)
         
@@ -592,12 +599,12 @@ class TaskID(task.ToolTask):
     def __init__(self, trial, id_setup_task, **kwargs):
         super(TaskID, self).__init__(id_setup_task, trial, **kwargs)
         self.doc = "Run OpenSim's Inverse Dynamics tool."
+        self.ik_setup_task = id_setup_task.ik_setup_task
         self.file_dep += [
                 self.subject.scaled_model_fpath,
                 id_setup_task.results_extloads_fpath,
                 id_setup_task.results_setup_fpath,
-                os.path.join(self.path, '%s_%s_ik_solution.mot' % (
-                    self.study.name, id_setup_task.tricycle.id))
+                os.path.join(self.ik_setup_task.path, '%s_%s_ik_solution.mot' % (self.study.name, id_setup_task.tricycle.id))
                 ]
         self.targets += [
                 os.path.join(self.path, '%s_%s_id_solution.mot' % (
@@ -617,6 +624,9 @@ class TaskRRAModelSetup(task.SetupTask):
 
         # Fill out tasks.xml template and copy over to results directory
         self.create_tasks_action()
+
+        # Fill out setup.xml template and write to results directory
+        self.create_setup_action()
 
     def fill_setup_template(self, file_dep, target,
                             init_time=None, final_time=None):
@@ -654,6 +664,9 @@ class TaskRRAKinSetup(task.SetupTask):
 
         # Fill out tasks.xml template and copy over to results directory
         self.create_tasks_action()
+
+        # Fill out setup.xml template and write to results directory
+        self.create_setup_action()
 
     def fill_setup_template(self, file_dep, target,
                             init_time=None, final_time=None):
@@ -801,6 +814,9 @@ class TaskCMCSetup(task.SetupTask):
         # Fill out tasks.xml template and copy over to results directory
         self.create_tasks_action()
 
+        # Fill out setup.xml template and write to results directory
+        self.create_setup_action()
+
     # Override derived action method since different desired kinematics
     # may be specified 
     def fill_external_loads_template(self, file_dep, target):
@@ -870,10 +886,209 @@ class TaskCMC(task.ToolTask):
                 self.path, self.study.name, cmc_setup_task.tricycle.id, 
                 'cmc', cmc_output)]
 
-class TaskMuscleRedundancySolverSetup(task.SetupTask):
+class TaskMRSDeGrooteSetup(task.SetupTask):
     REGISTRY = []
-    def __init__(self, trial, platform='matlab', **kwargs):
-        super(TaskMuscleRedundancySolverSetup, self).__init__('mrs', trial, 
+    def __init__(self, trial, **kwargs):
+        super(TaskMRSDeGrooteSetup, self).__init__('mrs', trial, 
             **kwargs)
-        self.doc = "Create a setup file for the Muscle Redundancy Solver tool."
-        
+        self.doc = "Create a setup file for the DeGroote Muscle Redundancy Solver tool."
+        self.kinematics_file = os.path.join(self.trial.results_exp_path, 'ik',
+                '%s_%s_ik_solution.mot' % (self.study.name, self.trial.id))
+        self.rel_kinematics_file = os.path.relpath(self.kinematics_file,
+                self.path)
+        self.kinetics_file = os.path.join(self.trial.results_exp_path,
+                'id', 'results', '%s_%s_id_solution.sto' % (self.study.name,
+                    self.trial.id))
+        self.rel_kinetics_file = os.path.relpath(self.kinetics_file,
+                self.path)
+        self.results_setup_fpath = os.path.join(self.path, 'setup.m')
+        self.results_post_fpath = os.path.join(self.path, 'postprocess.m')
+        self.results_output_fpath = os.path.join(self.path, '%s_%s_mrs.mat' % (
+            self.study.name, self.tricycle.id)) 
+        self.optctrlmuscle_path = self.study.config['optctrlmuscle_path']
+
+        self.file_dep += [
+            self.kinematics_file,
+            self.kinetics_file
+        ]
+
+        # Fill out setup.m template and write to results directory
+        self.create_setup_action()
+
+        # Fill out postprocess.m template and write to results directory
+        self.add_action(
+                ['templates/mrs/postprocess.m'],
+                [self.results_post_fpath],
+                self.fill_postprocess_template)
+
+    def create_setup_action(self): 
+        self.add_action(
+                    ['templates/%s/setup.m' % self.tool],
+                    [self.results_setup_fpath],
+                    self.fill_setup_template,  
+                    init_time=self.init_time,
+                    final_time=self.final_time,      
+                    )
+
+    def fill_setup_template(self, file_dep, target,
+                            init_time=None, final_time=None):
+        with open(file_dep[0]) as ft:
+            content = ft.read()
+            content = content.replace('@STUDYNAME@', self.study.name)
+            content = content.replace('@NAME@', self.tricycle.id)
+            # TODO should this be an RRA-adjusted model?
+            content = content.replace('@MODEL@', os.path.relpath(
+                self.subject.scaled_model_fpath, self.path))
+            content = content.replace('@REL_PATH_TO_TOOL@', os.path.relpath(
+                self.optctrlmuscle_path, self.path))
+            # TODO provide slop on either side? start before the cycle_start?
+            # end after the cycle_end?
+            content = content.replace('@INIT_TIME@',
+                    '%.5f' % init_time)
+            content = content.replace('@FINAL_TIME@', 
+                    '%.5f' % final_time)
+            content = content.replace('@IK_SOLUTION@',
+                    self.rel_kinematics_file)
+            content = content.replace('@ID_SOLUTION@',
+                    self.rel_kinetics_file)
+            content = content.replace('@SIDE@',
+                    self.trial.primary_leg[0])
+
+        with open(target[0], 'w') as f:
+            f.write(content)
+
+    def fill_postprocess_template(self, file_dep, target):
+        with open(file_dep[0]) as ft:
+            content = ft.read()
+            content = content.replace('@STUDYNAME@', self.study.name)
+            content = content.replace('@NAME@', self.tricycle.id)
+            content = content.replace('@REL_PATH_TO_TOOL@', os.path.relpath(
+                self.optctrlmuscle_path, self.path))
+            content = content.replace('@MODEL@', os.path.relpath(
+                self.subject.scaled_model_fpath, self.path))
+
+        with open(target[0], 'w') as f:
+            f.write(content)
+
+class TaskMRSDeGroote(task.ToolTask):
+    REGISTRY = []
+    def __init__(self, trial, mrs_setup_task, **kwargs):
+        super(TaskMRSDeGroote, self).__init__(mrs_setup_task, trial, 
+            opensim=False, **kwargs)
+        self.doc = 'Run DeGroote Muscle Redundancy Solver in MATLAB.'
+        self.results_setup_fpath  = mrs_setup_task.results_setup_fpath
+
+        self.file_dep += [
+                self.results_setup_fpath,
+                self.subject.scaled_model_fpath,
+                mrs_setup_task.kinematics_file,
+                mrs_setup_task.kinetics_file,
+                ]
+
+        self.actions += [
+                self.run_matlab,
+                ]
+
+        self.targets += [
+                mrs_setup_task.results_output_fpath,
+                ]
+
+    def run_matlab(self):
+        with utilities.working_directory(self.path):
+            # On Mac, CmdAction was causing MATLAB ipopt with GPOPS output to
+            # not display properly.
+
+            status = os.system('matlab -nodisplay -nodesktop -nosplash '
+                    '%s -logfile matlab_log.txt -r "try, '
+                    "run('%s'); disp('SUCCESS'); "
+                    'catch ME; disp(getReport(ME)); exit(2), end, exit(0);"\n'
+                    % ('-automation' if os.name == 'nt' else '',
+                       self.results_setup_fpath.replace('\\','/'))
+                    )
+            if status != 0:
+                raise Exception('Non-zero exit status.')
+
+class TaskMRSDeGrootePost(task.PostTask):
+    REGISTRY = []
+    def __init__(self, trial, mrs_setup_task, **kwargs):
+        super(TaskMRSDeGrootePost, self).__init__(mrs_setup_task, trial, 
+            **kwargs)
+        self.doc = 'Postprocess DeGroote Muscle Redundancy Solver in MATLAB.'
+        self.id = mrs_setup_task.tricycle.id
+
+        self.file_dep += [
+                mrs_setup_task.results_post_fpath,
+                mrs_setup_task.results_output_fpath,
+                ]
+
+        from doit.action import CmdAction
+        command = CmdAction('matlab -nodisplay -nodesktop -nosplash '
+                    '%s -logfile matlab_log.txt -r "try, '
+                    "run('%s'); disp('SUCCESS'); "
+                    'catch ME; disp(getReport(ME)); exit(2), end, exit(0);"\n'
+                    % ('-automation' if os.name == 'nt' else '',
+                       mrs_setup_task.results_post_fpath.replace('\\','/')),
+                cwd=os.path.abspath(self.path))
+
+        self.actions += [
+                command,
+                self.plot_results,
+                ]
+
+        self.targets += [
+                os.path.join(self.path, '%s_%s_mrs_lMtilde.csv' %
+                    (self.study.name, self.id)),
+                os.path.join(self.path, '%s_%s_mrs_MActivation.csv' %
+                    (self.study.name, self.id)),
+                os.path.join(self.path, '%s_%s_mrs_MExcitation.csv' %
+                    (self.study.name, self.id)),
+                os.path.join(self.path, '%s_%s_mrs_RActivation.csv' %
+                    (self.study.name, self.id)),
+                os.path.join(self.path, '%s_%s_mrs_TForce.csv' %
+                    (self.study.name, self.id)),
+                os.path.join(self.path, '%s_%s_mrs_TForcetilde.csv' %
+                    (self.study.name, self.id)),
+                # Plots:
+                os.path.join(self.path, 'muscle_activity.pdf'),
+                os.path.join(self.path, 'reserve_activity.pdf'),
+                ]
+
+    def plot_results(self):
+        with working_directory(self.path):
+            import pylab as pl
+            import numpy as np
+            df_a = pd.read_csv('%s_%s_mrs_MActivation.csv' % (self.study.name,
+                self.id), index_col=0)
+            df_e = pd.read_csv('%s_%s_mrs_MExcitation.csv' % (self.study.name,
+                self.id), index_col=0)
+            N = len(df_a.columns)
+            num_rows = 5
+            num_cols = np.ceil(float(N) / num_rows)
+            pl.figure(figsize=(11, 8.5))
+            for i in range(N):
+                pl.subplot(num_rows, num_cols, i + 1)
+                pl.plot(df_e.index, df_e[df_e.columns[i]], label='e')
+                pl.plot(df_a.index, df_a[df_a.columns[i]], label='a')
+                pl.ylim(0, 1)
+                if i == 1:
+                    pl.legend(frameon=False, fontsize=8)
+                pl.title(df_e.columns[i], fontsize=8)
+                pl.autoscale(enable=True, axis='x', tight=True)
+                pl.xticks([])
+                pl.yticks([])
+            pl.tight_layout()
+            pl.savefig('muscle_activity.pdf')
+
+            df_R = pd.read_csv('%s_%s_mrs_RActivation.csv' % (self.study.name,
+                self.id), index_col=0)
+            pl.figure()
+            NR = len(df_R.columns)
+            for i in range(NR):
+                pl.subplot(NR, 1, i + 1)
+                pl.plot(df_R.index, df_R[df_R.columns[i]])
+                pl.ylim(-1, 1)
+                pl.title(df_R.columns[i], fontsize=8)
+                pl.axhline(0)
+                pl.autoscale(enable=True, axis='x', tight=True)
+            pl.tight_layout()
+            pl.savefig('reserve_activity.pdf')
