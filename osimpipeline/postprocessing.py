@@ -626,15 +626,16 @@ def percent_duration(time, start=None, end=None):
 
 
 def toeoff_pgc(gl, side):
-    toeoff = gl[side + '_toeoff']
+    toeoff = getattr(gl, side + '_toeoff')
+    strike = getattr(gl, side + '_strike')
     cycle_duration = (gl.cycle_end - gl.cycle_start)
-    while toeoff < gl[side + '_strike']:
+    while toeoff < strike:
         toeoff += cycle_duration
-    while toeoff > gl[side + '_strike'] + cycle_duration:
+    while toeoff > strike + cycle_duration:
         toeoff -= cycle_duration
     return percent_duration_single(toeoff,
-            gl[side + '_strike'],
-            gl[side + '_strike'] + cycle_duration)
+            strike,
+            strike + cycle_duration)
 
 
 def plot_toeoff_pgc(gl, side, axes=None, *args, **kwargs):
