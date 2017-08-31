@@ -22,13 +22,21 @@ class TaskCopyGenericModelFilesToResults(task.StudyTask):
                 [study.generic_model_fpath],
                 self.copy_file)
 
-        if study.rra_actuators_fpath:
+        self.add_action(
+                [study.source_reserve_actuators_fpath],
+                [study.reserve_actuators_fpath],
+                self.copy_file)
+
+
+        if study.source_rra_actuators_fpath:
+            print 'debug1'
             self.add_action(
                 [study.source_rra_actuators_fpath],
                 [study.rra_actuators_fpath],
                 self.copy_file)
 
-        if study.cmc_actuators_fpath:
+        if study.source_cmc_actuators_fpath:
+            print 'debug2'
             self.add_action(
                 [study.source_cmc_actuators_fpath],
                 [study.cmc_actuators_fpath],
@@ -506,6 +514,8 @@ class TaskIKSetup(task.SetupTask):
             content = content.replace('@MARKER_FILE@',
                 os.path.relpath(self.trial.marker_trajectories_fpath, 
                     self.path))
+            content = content.replace('@TASKS@', os.path.relpath(
+                self.results_tasks_fpath, self.path))
             content = content.replace('@INIT_TIME@', '%.4f' % init_time)
             content = content.replace('@FINAL_TIME@', '%.4f' % final_time)
         

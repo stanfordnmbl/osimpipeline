@@ -7,6 +7,7 @@ import collections
 import copy
 import os
 import re
+import warnings
 
 import numpy as np
 import matplotlib
@@ -303,7 +304,8 @@ def plot_marker_error_general(output_filepath, marker_names, ymax, gl,
 
             for side in ['R', 'L']:
                 name = '%s%s' % (side, marker_name)
-                plot(data['time'], mult * data[name], side, label=name)
+                plot(data['time'], mult * np.array(data[name]), side, 
+                    label=name)
                 
         else:
             plot(np.array(data['time']), mult * np.array(data[marker_name]),
@@ -326,7 +328,6 @@ def plot_marker_error(output_filepath, marker_names, ymax, gl, *args,
     **kwargs):
     data = marker_error(*args, **kwargs)
     plot_marker_error_general(output_filepath, marker_names, ymax, gl, data)
-
 
 def plot_marker_error_from_kinematics(output_filepath, marker_names, ymax, gl,
     *args, **kwargs):
