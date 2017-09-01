@@ -125,7 +125,7 @@ class Trial(object):
         self.marker_trajectories_fpath = os.path.join(
                 self.expdata_path, 'marker_trajectories.trc')
         self.ground_reaction_fpath = os.path.join(
-                self.expdata_path, 'ground_reaction_orig.mot')
+                self.expdata_path, 'ground_reaction.mot')
         # Model used by RRA to create adjusted model. By default, this is set 
         # to the scaled model, but it can be set to a different model if the 
         # scaled model must be modifed (adding a backpack, etc.)

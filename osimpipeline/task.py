@@ -164,7 +164,7 @@ class SetupTask(TrialTask):
                     final_time=self.final_time,      
                     )
 
-    def create_external_loads_action(self):
+    def create_external_loads_action(self, rel_kinematics_fpath):
         self.add_source_dir()
         if (not os.path.exists(self.source_extloads_fpath) and 
             self.create_setup_deps):
@@ -173,7 +173,8 @@ class SetupTask(TrialTask):
             self.add_action(
                 ['templates/%s/external_loads.xml' % self.tool],
                 [self.source_extloads_fpath],
-                self.fill_external_loads_template)
+                self.fill_external_loads_template,
+                rel_kinematics_fpath)
             self.actions.append((self.copy_file,
                 [[self.source_extloads_fpath], [self.results_extloads_fpath]]))
         else:
@@ -207,11 +208,14 @@ class SetupTask(TrialTask):
     def fill_setup_template(self):
         raise NotImplementedError()
 
-    def fill_external_loads_template(self, file_dep, target):
+    def fill_external_loads_template(self, file_dep, target,
+        rel_kinematics_fpath):
         with open(file_dep[0]) as ft:
             content = ft.read()
             content = content.replace('@STUDYNAME@', self.study.name)
             content = content.replace('@NAME@', self.trial.id)
+            content = content.replace('@KINEMATICS_FILE@', 
+                rel_kinematics_fpath)
 
         with open(target[0], 'w') as f:
             f.write(content)

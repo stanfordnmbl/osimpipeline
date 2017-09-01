@@ -19,6 +19,8 @@ from scipy.stats import nanmean, nanstd
 
 import platform
 
+from utilities import storage2numpy, TRCFile
+
 def running_in_jython():
     return platform.system() == 'Java'
 
@@ -653,288 +655,163 @@ def plot_toeoff_pgc(gl, side, axes=None, *args, **kwargs):
     ax.axvline(toeoff_pgc(gl, side), *args, **kwargs)
 
 
-## Data Management ##
-## =============== ##
-
-def storage2numpy(storage_file, excess_header_entries=0):
-    """Returns the data from a storage file in a numpy format. Skips all lines
-    up to and including the line that says 'endheader'.
+def plot_force_plate_data(mot_file):
+    """Plots all force componenets, center of pressure components, and moment
+    components, for both legs.
 
     Parameters
     ----------
-    storage_file : str
-        Path to an OpenSim Storage (.sto) file.
-
-    Returns
-    -------
-    data : np.ndarry (or numpy structure array or something?)
-        Contains all columns from the storage file, indexable by column name.
-    excess_header_entries : int, optional
-        If the header row has more names in it than there are data columns.
-        We'll ignore this many header row entries from the end of the header
-        row. This argument allows for a hacky fix to an issue that arises from
-        Static Optimization '.sto' outputs.
-
-    Examples
-    --------
-    Columns from the storage file can be obtained as follows:
-
-        >>> data = storage2numpy('<filename>')
-        >>> data['ground_force_vy']
+    mot_file : str
+        Name of *.mot (OpenSim Storage) file containing force plate data.
 
     """
-    # What's the line number of the line containing 'endheader'?
-    f = open(storage_file, 'r')
+    data = storage2numpy(mot_file)
+    time = data['time']
 
-    header_line = False
-    for i, line in enumerate(f):
-        if header_line:
-            column_names = line.split()
-            break
-        if line.count('endheader') != 0:
-            line_number_of_line_containing_endheader = i + 1
-            header_line = True
-    f.close()
+    pl.figure(figsize=(5 * 2, 4 * 3))
 
-    # With this information, go get the data.
-    if excess_header_entries == 0:
-        names = True
-        skip_header = line_number_of_line_containing_endheader
+    for i, prefix in enumerate([ '1_', '']):
+        pl.subplot2grid((3, 2), (0, i))
+        for comp in ['x', 'y', 'z']:
+            pl.plot(time, 1.0e-3 * data['%sground_force_v%s' % (prefix, comp)],
+                    label=comp)
+        if i == 0:
+            pl.title('left foot')
+            pl.ylabel('force components (kN)')
+        if i == 1:
+            pl.title('right foot')
+            pl.legend(loc='upper left', bbox_to_anchor=(1, 1))
+
+    for i, prefix in enumerate([ '1_', '']):
+        pl.subplot2grid((3, 2), (1, i))
+        for comp in ['x', 'y', 'z']:
+            pl.plot(time, data['%sground_force_p%s' % (prefix, comp)],
+                    label=comp)
+
+        if i == 0: pl.ylabel('center of pressure components (m)')
+
+    for i, prefix in enumerate([ '1_', '']):
+        pl.subplot2grid((3, 2), (2, i))
+        for comp in ['x', 'y', 'z']:
+            pl.plot(time, data['%sground_torque_%s' % (prefix, comp)],
+                    label=comp)
+
+        if i == 0: pl.ylabel('torque components (N-m)')
+        pl.xlabel('time (s)')
+
+
+def plot_gait_torques(output_filepath, actu, primary_leg, cycle_start,
+        cycle_end, primary_footstrike, opposite_footstrike,
+        toeoff_time=None):
+    """Plots hip, knee, and ankle torques, as a function of percent
+    gait cycle, for one gait cycle. Gait cycle starts with a footstrike (start
+    of stance). Torques are plotted for both legs; the data for the
+    'opposite' leg is properly shifted so that we plot it starting from a
+    footstrike as well.
+
+    We assume torques are in units of N-m.
+
+    Knee torque is negated: In OpenSim, a flexion torque is represented by a
+    negative value for the torque. In literature, flexion is shown
+    as positive.
+
+    Parameters
+    ----------
+    actu : pytables.Group or dict
+        Actuation_force group from a simulation containing joint torques
+        (probably an RRA output). If dict, must have fields 'time',
+        'hip_flexion_r', 'knee_angle_r' (extension), 'ankle_angle_r'
+        (dorsiflexion), 'hip_flexion_l', 'knee_angle_l' (extension),
+        'ankle_angle_l' (dorsiflexion).
+    primary_leg : str; 'right' or 'left'
+        The first and second foot strikes are for which leg?
+    cycle_start : float
+        Time, in seconds, at which the gait cycle starts.
+    cycle_end : float
+        Time, in seconds, at which the gait cycle ends.
+    primary_footstrike : float
+        Time, in seconds, at which the primary leg foot-strikes.
+    opposite_footstrike : float
+        In between the other two footstrikes, the opposite foot also strikes
+        the ground. What's the time at which this happens? This is used to
+        shift the data for the opposite leg so that it lines up with the
+        `primary` leg's data.
+    toeoff_time : bool, optional
+        Draw a vertical line on the plot to indicate when the primary foot
+        toe-off occurs by providing the time at which this occurs.
+
+    """
+    # TODO compare to experimental data.
+    # TODO compare to another simulation.
+    if primary_leg == 'right':
+        opposite_leg = 'left'
+    elif primary_leg == 'left':
+        opposite_leg = 'right'
     else:
-        names = column_names[:-excess_header_entries]
-        skip_header = line_number_of_line_containing_endheader + 1
-    data = np.genfromtxt(storage_file, names=names,
-            skip_header=skip_header)
+        raise Exception("'primary_leg' is '%s'; it must "
+                "be 'left' or 'right'." % primary_leg)
 
-    return data
-
-class TRCFile(object):
-    """A plain-text file format for storing motion capture marker trajectories.
-    TRC stands for Track Row Column.
-
-    The metadata for the file is stored in attributes of this object.
-
-    See
-    http://simtk-confluence.stanford.edu:8080/display/OpenSim/Marker+(.trc)+Files
-    for more information.
-
-    """
-    def __init__(self, fpath=None, **kwargs):
-            #path=None,
-            #data_rate=None,
-            #camera_rate=None,
-            #num_frames=None,
-            #num_markers=None,
-            #units=None,
-            #orig_data_rate=None,
-            #orig_data_start_frame=None,
-            #orig_num_frames=None,
-            #marker_names=None,
-            #time=None,
-            #):
-        """
-        Parameters
-        ----------
-        fpath : str
-            Valid file path to a TRC (.trc) file.
-
-        """
-        self.marker_names = []
-        if fpath != None:
-            self.read_from_file(fpath)
+    def plot_for_a_leg(coordinate_name, leg, new_start, color='k', mult=1.0):
+        if type(actu) == np.ndarray:
+            raw_time = actu['time']
+            raw_y = actu[coordinate_name + '_%s_moment' % leg[0]] # TODO uhoh
         else:
-            for k, v in kwargs.items():
-                setattr(self, k, v)
+            raw_time = actu.cols.time[:]
+            raw_y = getattr(actu.cols, '%s_%s' % (coordinate_name, leg[0]))
+        time, angle = shift_data_to_cycle( cycle_start, cycle_end, new_start,
+                raw_time, raw_y)
+        pl.plot(percent_duration(time), mult * angle, color=color,
+                label=leg)
 
-    def read_from_file(self, fpath):
-        # Read the header lines / metadata.
-        # ---------------------------------
-        # Split by any whitespace.
-        # TODO may cause issues with paths that have spaces in them.
-        f = open(fpath)
-        # These are lists of each entry on the first few lines.
-        first_line = f.readline().split()
-        # Skip the 2nd line.
-        f.readline()
-        third_line = f.readline().split()
-        fourth_line = f.readline().split()
-        f.close()
+    def plot_primary_leg(coordinate_name, **kwargs):
+        plot_for_a_leg(coordinate_name, primary_leg, primary_footstrike,
+                **kwargs)
 
-        # First line.
-        if len(first_line) > 3:
-            self.path = first_line[3]
+    def plot_opposite_leg(coordinate_name, **kwargs):
+        plot_for_a_leg(coordinate_name, opposite_leg, opposite_footstrike,
+                color=(0.5, 0.5, 0.5), **kwargs)
+
+    def plot_coordinate(index, name, negate=False, label=None):
+        ax = pl.subplot(3, 1, index)
+        if negate:
+            plot_primary_leg(name, mult=-1.0)
+            plot_opposite_leg(name, mult=-1.0)
         else:
-            self.path = ''
+            plot_primary_leg(name)
+            plot_opposite_leg(name)
+        # TODO this next line isn't so great of an idea:
+        if label == None:
+            label = name.replace('_', ' ')
+        pl.ylabel('%s (N-m)' % label)
+        pl.legend()
 
-        # Third line.
-        self.data_rate = float(third_line[0])
-        self.camera_rate = float(third_line[1])
-        self.num_frames = int(third_line[2])
-        self.num_markers = int(third_line[3])
-        self.units = third_line[4]
-        self.orig_data_rate = float(third_line[5])
-        self.orig_data_start_frame = int(third_line[6])
-        self.orig_num_frames = int(third_line[7])
+        if toeoff_time != None:
+            duration = cycle_end - cycle_start
+            # 'pgc' is percent gait cycle
+            if toeoff_time > primary_footstrike:
+                toeoff_pgc = percent_duration_single(toeoff_time,
+                        primary_footstrike, duration +
+                        primary_footstrike)
+            else:
+                chunk1 = cycle_end - primary_footstrike
+                chunk2 = toeoff_time - cycle_start
+                toeoff_pgc = (chunk1 + chunk2) / duration * 100.0
+            pl.plot(toeoff_pgc * np.array([1, 1]), ax.get_ylim(),
+                    c=(0.5, 0.5, 0.5))
 
-        # Marker names.
-        # The first and second column names are 'Frame#' and 'Time'.
-        self.marker_names = fourth_line[2:]
+        pl.xticks([0.0, 25.0, 50.0, 75.0, 100.0])
+        pl.minorticks_on()
+        pl.grid(b=True, which='major', color='gray', linestyle='--')
+        pl.grid(b=True, which='minor', color='gray', linestyle='--')
 
-        len_marker_names = len(self.marker_names)
-        if len_marker_names != self.num_markers:
-            warnings.warn('Header entry NumMarkers, %i, does not '
-                    'match actual number of markers, %i. Changing '
-                    'NumMarkers to match actual number.' % (
-                        self.num_markers, len_marker_names))
-            self.num_markers = len_marker_names
+    fig = pl.figure(figsize=(4, 12))
+    plot_coordinate(1, 'hip_flexion', label='hip flexion moment')
+    plot_coordinate(2, 'knee_angle', negate=True, label='knee flexion moment')
+    plot_coordinate(3, 'ankle_angle', label='ankle dorsiflexion moment')
+    pl.xlabel('percent gait cycle')
 
-        # Load the actual data.
-        # ---------------------
-        col_names = ['frame_num', 'time']
-        # This naming convention comes from OpenSim's Inverse Kinematics tool,
-        # when it writes model marker locations.
-        for mark in self.marker_names:
-            col_names += [mark + '_tx', mark + '_ty', mark + '_tz']
-        dtype = {'names': col_names,
-                'formats': ['int'] + ['float64'] * (3 * self.num_markers + 1)}
-        self.data = np.loadtxt(fpath, delimiter='\t', skiprows=6, dtype=dtype)
-        self.time = self.data['time']
-
-        # Check the number of rows.
-        n_rows = self.time.shape[0]
-        if n_rows != self.num_frames:
-            warnings.warn('%s: Header entry NumFrames, %i, does not '
-                    'match actual number of frames, %i, Changing '
-                    'NumFrames to match actual number.' % (fpath,
-                        self.num_frames, n_rows))
-            self.num_frames = n_rows
-
-    def __getitem__(self, key):
-        """See `marker()`.
-
-        """
-        return self.marker(key)
-
-    def marker(self, name):
-        """The trajectory of marker `name`, given as a `self.num_frames` x 3
-        array. The order of the columns is x, y, z.
-
-        """
-        this_dat = np.empty((self.num_frames, 3))
-        this_dat[:, 0] = self.data[name + '_tx']
-        this_dat[:, 1] = self.data[name + '_ty']
-        this_dat[:, 2] = self.data[name + '_tz']
-        return this_dat
-
-    def add_marker(self, name, x, y, z):
-        """Add a marker, with name `name` to the TRCFile.
-
-        Parameters
-        ----------
-        name : str
-            Name of the marker; e.g., 'R.Hip'.
-        x, y, z: array_like
-            Coordinates of the marker trajectory. All 3 must have the same
-            length.
-
-        """
-        if (len(x) != self.num_frames or len(y) != self.num_frames or len(z) !=
-                self.num_frames):
-            raise Exception('Length of data (%i, %i, %i) is not '
-                    'NumFrames (%i).', len(x), len(y), len(z), self.num_frames)
-        self.marker_names += [name]
-        self.num_markers += 1
-        if not hasattr(self, 'data'):
-            self.data = np.array(x, dtype=[('%s_tx' % name, 'float64')])
-            self.data = append_fields(self.data,
-                    ['%s_t%s' % (name, s) for s in 'yz'],
-                    [y, z], usemask=False)
-        else:
-            self.data = append_fields(self.data,
-                    ['%s_t%s' % (name, s) for s in 'xyz'],
-                    [x, y, z], usemask=False)
-
-    def marker_at(self, name, time):
-        x = np.interp(time, self.time, self.data[name + '_tx'])
-        y = np.interp(time, self.time, self.data[name + '_ty'])
-        z = np.interp(time, self.time, self.data[name + '_tz'])
-        return [x, y, z]
-
-    def marker_exists(self, name):
-        """
-        Returns
-        -------
-        exists : bool
-            Is the marker in the TRCFile?
-
-        """
-        return name in self.marker_names
-
-    def write(self, fpath):
-        """Write this TRCFile object to a TRC file.
-
-        Parameters
-        ----------
-        fpath : str
-            Valid file path to which this TRCFile is saved.
-
-        """
-        f = open(fpath, 'w')
-
-        # Line 1.
-        f.write('PathFileType  4\t(X/Y/Z) %s\n' % os.path.split(fpath)[0])
-
-        # Line 2.
-        f.write('DataRate\tCameraRate\tNumFrames\tNumMarkers\t'
-                'Units\tOrigDataRate\tOrigDataStartFrame\tOrigNumFrames\n')
-
-        # Line 3.
-        f.write('%.1f\t%.1f\t%i\t%i\t%s\t%.1f\t%i\t%i\n' % (
-            self.data_rate, self.camera_rate, self.num_frames,
-            self.num_markers, self.units, self.orig_data_rate,
-            self.orig_data_start_frame, self.orig_num_frames))
-
-        # Line 4.
-        f.write('Frame#\tTime\t')
-        for imark in range(self.num_markers):
-            f.write('%s\t\t\t' % self.marker_names[imark])
-        f.write('\n')
-
-        # Line 5.
-        f.write('\t\t')
-        for imark in np.arange(self.num_markers) + 1:
-            f.write('X%i\tY%s\tZ%s\t' % (imark, imark, imark))
-        f.write('\n')
-
-        # Line 6.
-        f.write('\n')
-
-        # Data.
-        for iframe in range(self.num_frames):
-            f.write('%i' % (iframe + 1))
-            f.write('\t%.5f' % self.time[iframe])
-            for mark in self.marker_names:
-                idxs = [mark + '_tx', mark + '_ty', mark + '_tz']
-                f.write('\t%.3f\t%.3f\t%.3f' % tuple(
-                    self.data[coln][iframe] for coln in idxs))
-            f.write('\n')
-
-        f.close()
-
-    def add_noise(self, noise_width):
-        """ add random noise to each component of the marker trajectory
-            The noise mean will be zero, with the noise_width being the
-            standard deviation.
-
-            noise_width : int
-        """
-        for imarker in range(self.num_markers):
-            components = ['_tx', '_ty', '_tz']
-            for iComponent in range(3):
-                # generate noise
-                noise = np.random.normal(0, noise_width, self.num_frames)
-                # add noise to each component of marker data.
-                self.data[self.marker_names[imarker] + components[iComponent]] += noise
+    pl.tight_layout()
+    fig.savefig(output_filepath)
 
 ## Modeling ##
 ## ======== ##
@@ -1062,3 +939,4 @@ def set_model_state_from_storage(model, storage, time, state=None,
     model.assemble(state)
 
     return state
+
