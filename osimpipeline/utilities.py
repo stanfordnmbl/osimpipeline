@@ -2,7 +2,9 @@
 import os
 import opensim as osm
 import numpy as np
+import pandas as pd
 import warnings
+import h5py
 
 class working_directory():
     """Use this to temporarily run code with some directory as a working
@@ -243,6 +245,46 @@ def gait_landmarks_from_grf(mot_file,
 
     return right_foot_strikes, left_foot_strikes, right_toe_offs, left_toe_offs
 
+def hdf2pandas(filename,fieldname,isString=False, columns=None):
+    """A function to extract data from HDF5 files into a useable format for scripting.
+    """
+    f = h5py.File(filename)
+    refs = f[fieldname]
+
+    if isString:
+        data = [f[ref].value.tobytes()[::2].decode() for ref in refs[:,0]]
+    else:
+        data = [refs[i,:] for i in range(refs.shape[0])]
+
+    data = zip(*data)
+
+    return pd.DataFrame(data, columns=columns)
+
+def hdf2list(filename,fieldname,isString=False):
+    """A function to extract data from HDF5 files into a useable format for scripting.
+    """
+    f = h5py.File(filename)
+    refs = f[fieldname]
+
+    if isString:
+        data = [f[ref].value.tobytes()[::2].decode() for ref in refs[:,0]]
+    else:
+        data = [f[ref].value for ref in refs[:,0]]
+
+    return data
+
+def hdf2numpy(filename,fieldname,isString=False):
+    """A function to extract data from HDF5 files into a useable format for scripting.
+    """
+    f = h5py.File(filename)
+    refs = f[fieldname]
+
+    if isString:
+        data = [f[ref].value.tobytes()[::2].decode() for ref in refs[:,0]]
+    else:
+        data = [f[ref].value for ref in refs[:,0]]
+
+    return np.array(data)
 
 class TRCFile(object):
     """A plain-text file format for storing motion capture marker trajectories.

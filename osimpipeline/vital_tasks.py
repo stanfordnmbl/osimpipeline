@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 import scipy.io as sio
 from scipy.interpolate import interp1d
+import h5py
 
 import opensim as osm
 import utilities as util
@@ -1041,12 +1042,11 @@ class TaskMRSDeGroote(task.ToolTask):
             # On Mac, CmdAction was causing MATLAB ipopt with GPOPS output to
             # not display properly.
 
-            status = os.system('matlab %s -wait'
-                    '-logfile matlab_log.txt -r "try, '
+            status = os.system('matlab %s -logfile matlab_log.txt -wait -r "try, '
                     "run('%s'); disp('SUCCESS'); "
                     'catch ME; disp(getReport(ME)); exit(2), end, exit(0);"\n'
                     % ('-automation' if os.name == 'nt' else '',
-                       self.results_setup_fpath.replace('\\','/'))
+                        self.results_setup_fpath)
                     )
             if status != 0:
                 raise Exception('Non-zero exit status.')
@@ -1087,35 +1087,34 @@ class TaskMRSDeGrootePost(task.PostTask):
         with util.working_directory(self.path):
 
             # Load mat file
-            mat = sio.loadmat(self.results_output_fpath)
-            
-            # Muscle names
-            muscle_name_array = mat['MuscleNames'][0]
-            num_muscles = len(muscle_name_array)
-            muscle_names = list()
-            for imusc in range(num_muscles):
-                mname = muscle_name_array[imusc][0]
-                muscle_names.append(mname)
+            muscle_names = util.hdf2list(self.results_output_fpath,
+                'MuscleNames',isString=True)
+
+            print muscle_names
 
             # Muscle excitations
-            e = mat['MExcitation']
-            df_e = pd.DataFrame(e, columns=muscle_names)
+            df_e = util.hdf2pandas(self.results_output_fpath,
+                'MExcitation', columns=muscle_names)
+
+            print df_e
 
             # Muscle activations
-            a = mat['MActivation']
-            df_a = pd.DataFrame(a, columns=muscle_names)
+            df_a = util.hdf2pandas(self.results_output_fpath,
+                'MActivation', columns=muscle_names)
+
+            print df_a
         
             # DOF names
-            dof_name_array = mat['DatStore']['DOFNames'][0, 0][0]
-            num_dofs = len(dof_name_array)
-            dof_names = list()
-            for idof in range(num_dofs):
-                dofname = dof_name_array[idof][0]
-                dof_names.append(dofname)
+            dof_names = util.hdf2list(self.results_output_fpath,
+                'DatStore/DOFNames',isString=True)
+
+            print dof_names
 
             # Reserve activations
-            R = mat['RActivation']
-            df_R = pd.DataFrame(R, columns=dof_names)
+            df_R = util.hdf2pandas(self.results_output_fpath,
+                'RActivation', columns=dof_names)
+
+            print df_R
 
             N = len(df_a.columns)
             num_rows = 5

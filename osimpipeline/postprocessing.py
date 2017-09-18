@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import pylab as pl
 import tables
 from scipy.signal import butter, filtfilt
-from scipy.stats import nanmean, nanstd
+from numpy import nanmean, nanstd
 
 import platform
 
