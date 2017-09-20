@@ -1210,90 +1210,52 @@ class TaskMRSDeGrootePost(task.PostTask):
                         )
 
     def plot_activations(self, file_dep, target):
-        with util.working_directory(self.path):
 
-            # Load mat file fields
-            muscle_names = util.hdf2list(self.results_output_fpath,
-                'MuscleNames',isString=True)
-            df_e = util.hdf2pandas(self.results_output_fpath,
-                'MExcitation', columns=muscle_names)
-            df_a = util.hdf2pandas(self.results_output_fpath,
-                'MActivation', columns=muscle_names)
-            dof_names = util.hdf2list(self.results_output_fpath,
-                'DatStore/DOFNames',isString=True)
-            df_R = util.hdf2pandas(self.results_output_fpath,
-                'RActivation', columns=dof_names)
+        # Load mat file fields
+        muscle_names = util.hdf2list(file_dep[0], 'MuscleNames',isString=True)
+        exc = util.hdf2pandas(file_dep[0], 'MExcitation', columns=muscle_names)
+        act = util.hdf2pandas(file_dep[0], 'MActivation', columns=muscle_names)
+        dof_names = util.hdf2list(file_dep[0], 'DatStore/DOFNames', 
+            isString=True)
+        reserves = util.hdf2pandas(file_dep[0],'RActivation', columns=dof_names)
 
-            # Create plots
-            N = len(df_a.columns)
-            num_rows = 5
-            num_cols = np.ceil(float(N) / num_rows)
-            pl.figure(figsize=(11, 8.5))
-            for i in range(N):
-                pl.subplot(num_rows, num_cols, i + 1)
-                pl.plot(df_e.index, df_e[df_e.columns[i]], label='e')
-                pl.plot(df_a.index, df_a[df_a.columns[i]], label='a')
-                pl.ylim(0, 1)
-                if i == 1:
-                    pl.legend(frameon=False, fontsize=8)
-                pl.title(df_e.columns[i], fontsize=8)
-                pl.autoscale(enable=True, axis='x', tight=True)
-                pl.xticks([])
-                pl.yticks([])
-            pl.tight_layout()
-            pl.savefig('muscle_activity.pdf')
-
-            pl.figure()
-            NR = len(df_R.columns)
-            for i in range(NR):
-                pl.subplot(NR, 1, i + 1)
-                pl.plot(df_R.index, df_R[df_R.columns[i]])
-                pl.ylim(-1, 1)
-                pl.title(df_R.columns[i], fontsize=8)
-                pl.axhline(0)
-                pl.autoscale(enable=True, axis='x', tight=True)
-            pl.tight_layout()
-            pl.savefig('reserve_activity.pdf')
+        # Create plots
+        pp.plot_muscle_activity(target[0], exc=exc, act=act)
+        pp.plot_reserve_activity(target[1], reserves)
 
     def plot_joint_moment_breakdown(self, file_dep, target):
-        with util.working_directory(self.path):
 
-            # Load mat file fields
-            muscle_names = util.hdf2list(self.results_output_fpath,
-                'MuscleNames',isString=True)
-            dof_names = util.hdf2list(self.results_output_fpath,
-                'DatStore/DOFNames',isString=True)
-            num_dofs = len(dof_names)
-            num_muscles = len(muscle_names)
-            joint_moments_exp = util.hdf2numpy(self.results_output_fpath,
-                'DatStore/T_exp',columns=dof_names)
-            tendon_forces = util.hdf2numpy(self.results_output_fpath, 
-                'TForce', columns=muscle_names)
-            exp_time = util.hdf2numpy(self.results_output_fpath,
-                'DatStore/time').transpose()[0]
-            time = util.hdf2numpy(self.results_output_fpath, 
-                'Time').transpose()[0]
-            moment_arms_exp = util.hdf2numpy(self.results_output_fpath,
-                'DatStore/dM').transpose()
-            
-            # Interpolate to match solution time
-            from scipy.interpolate import interp1d
-            ma_shape = (len(time), moment_arms_exp.shape[1], 
-                moment_arms_exp.shape[2])
-            moment_arms = np.empty(ma_shape)
-            for i in range(moment_arms_exp.shape[2]):
-                func_moment_arms_interp = interp1d(exp_time, 
-                    moment_arms_exp[:,:,i].squeeze(), axis=0)
-                moment_arms[:,:,i] = func_moment_arms_interp(time)
+        # Load mat file fields
+        muscle_names = util.hdf2list(file_dep[0], 'MuscleNames', isString=True)
+        dof_names = util.hdf2list(file_dep[0],'DatStore/DOFNames',isString=True)
+        num_dofs = len(dof_names)
+        num_muscles = len(muscle_names)
+        joint_moments_exp = util.hdf2numpy(file_dep[0], 'DatStore/T_exp',
+            columns=dof_names)
+        tendon_forces = util.hdf2numpy(file_dep[0], 'TForce', 
+            columns=muscle_names)
+        exp_time = util.hdf2numpy(file_dep[0], 'DatStore/time').transpose()[0]
+        time = util.hdf2numpy(file_dep[0], 'Time').transpose()[0]
+        moment_arms_exp = util.hdf2numpy(file_dep[0], 'DatStore/dM').transpose()
+        
+        # Interpolate to match solution time
+        from scipy.interpolate import interp1d
+        ma_shape = (len(time), moment_arms_exp.shape[1], 
+            moment_arms_exp.shape[2])
+        moment_arms = np.empty(ma_shape)
+        for i in range(moment_arms_exp.shape[2]):
+            func_moment_arms_interp = interp1d(exp_time, 
+                moment_arms_exp[:,:,i].squeeze(), axis=0)
+            moment_arms[:,:,i] = func_moment_arms_interp(time)
 
-            func_joint_moments_interp = interp1d(exp_time, joint_moments_exp,
-                axis=0)
-            joint_moments = func_joint_moments_interp(time)
+        func_joint_moments_interp = interp1d(exp_time, joint_moments_exp,
+            axis=0)
+        joint_moments = func_joint_moments_interp(time)
 
-            # Generate plots
-            pp.plot_joint_moment_breakdown(time, joint_moments, tendon_forces,
-                moment_arms, dof_names, muscle_names, target[0], target[1],
-                mass=self.subject.mass)
+        # Generate plots
+        pp.plot_joint_moment_breakdown(time, joint_moments, tendon_forces,
+            moment_arms, dof_names, muscle_names, target[0], target[1],
+            mass=self.subject.mass)
 
 class TaskMRSDeGrooteMod(task.ToolTask):
     def __init__(self, trial, mrs_setup_task, mod_name, description,
@@ -1409,12 +1371,15 @@ class TaskMRSDeGrooteMod(task.ToolTask):
 
     def run_muscle_redundancy_solver(self):
         with util.working_directory(self.path):
-            status = os.system('matlab -nodisplay -nodesktop -nosplash '
-                    '-logfile -wait matlab_log.txt -r "try, '
-                    "run('%s'); disp('SUCCESS'); "
-                    'catch ME; disp(getReport(ME)); exit(2), end, exit(0);"\n'
-                    % (self.setup_fpath.replace('\\','/'))
-                    )
+
+            status = os.system('matlab '
+                '%s -logfile matlab_log.txt -wait -r "try, '
+                "run('%s'); disp('SUCCESS'); "
+                'catch ME; disp(getReport(ME)); exit(2), end, exit(0);"\n'
+                % ('-automation' if os.name == 'nt' else '',
+                    self.setup_fpath)
+                )
+
             if status != 0:
                 raise Exception('Non-zero exit status.')
 
@@ -1423,5 +1388,76 @@ class TaskMRSDeGrooteMod(task.ToolTask):
             import shutil
             shutil.rmtree(os.path.join(self.path, 'results'))
 
-
 # class TaskMRSDeGrooteModPost(task.PostTask):
+#     REGISTRY = []
+#     def __init__(self, trial, mrs_mod_task, **kwargs):
+#         super(TaskMRSDeGrooteModPost, self).__init__(mrs_mod_task, trial, 
+#             **kwargs)
+#         self.doc = 'Postprocess modified DeGroote Muscle Redundancy Solver problem in MATLAB.'
+#         self.name = 'mrsmod_%s_%s_%s' % (self.mod_name, 'post', 
+#             mrs_setup_task.tricycle.id)
+#         self.path = mrs_mod_task.path
+#         self.id = mrs_setup_task.tricycle.id
+
+#         # Plot muscle excitations, activations, and reserve activations
+#         self.add_action([self.results_output_fpath],
+#                         [os.path.join(self.path, 'muscle_activity.pdf'),
+#                         os.path.join(self.path, 'reserve_activity.pdf')],
+#                         self.plot_activations
+#                         )
+
+#         # Plot joint moment breakdown
+#         self.add_action([self.results_output_fpath],
+#                         [os.path.join(self.path, 'joint_moment_breakdown.pdf'),
+#                         os.path.join(self.path, '%s_%s_mrs_moments.csv' %
+#                         (self.study.name, mrs_setup_task.tricycle.id))],
+#                         self.plot_joint_moment_breakdown
+#                         )
+
+#     def plot_activations(self, file_dep, target):
+
+#         # Load mat file fields
+#         muscle_names = util.hdf2list(file_dep[0], 'MuscleNames',isString=True)
+#         exc = util.hdf2pandas(file_dep[0], 'MExcitation', columns=muscle_names)
+#         act = util.hdf2pandas(file_dep[0], 'MActivation', columns=muscle_names)
+#         dof_names = util.hdf2list(file_dep[0], 'DatStore/DOFNames', 
+#             isString=True)
+#         reserves = util.hdf2pandas(file_dep[0],'RActivation', columns=dof_names)
+
+#         # Create plots
+#         pp.plot_muscle_activity(target[0], exc=exc, act=act)
+#         pp.plot_reserve_activity(target[1], reserves)
+
+#     def plot_joint_moment_breakdown(self, file_dep, target):
+
+#         # Load mat file fields
+#         muscle_names = util.hdf2list(file_dep[0], 'MuscleNames', isString=True)
+#         dof_names = util.hdf2list(file_dep[0],'DatStore/DOFNames',isString=True)
+#         num_dofs = len(dof_names)
+#         num_muscles = len(muscle_names)
+#         joint_moments_exp = util.hdf2numpy(file_dep[0], 'DatStore/T_exp',
+#             columns=dof_names)
+#         tendon_forces = util.hdf2numpy(file_dep[0], 'TForce', 
+#             columns=muscle_names)
+#         exp_time = util.hdf2numpy(file_dep[0], 'DatStore/time').transpose()[0]
+#         time = util.hdf2numpy(file_dep[0], 'Time').transpose()[0]
+#         moment_arms_exp = util.hdf2numpy(file_dep[0], 'DatStore/dM').transpose()
+        
+#         # Interpolate to match solution time
+#         from scipy.interpolate import interp1d
+#         ma_shape = (len(time), moment_arms_exp.shape[1], 
+#             moment_arms_exp.shape[2])
+#         moment_arms = np.empty(ma_shape)
+#         for i in range(moment_arms_exp.shape[2]):
+#             func_moment_arms_interp = interp1d(exp_time, 
+#                 moment_arms_exp[:,:,i].squeeze(), axis=0)
+#             moment_arms[:,:,i] = func_moment_arms_interp(time)
+
+#         func_joint_moments_interp = interp1d(exp_time, joint_moments_exp,
+#             axis=0)
+#         joint_moments = func_joint_moments_interp(time)
+
+#         # Generate plots
+#         pp.plot_joint_moment_breakdown(time, joint_moments, tendon_forces,
+#             moment_arms, dof_names, muscle_names, target[0], target[1],
+#             mass=self.subject.mass)

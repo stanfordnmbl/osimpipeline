@@ -815,8 +815,77 @@ def plot_gait_torques(output_filepath, actu, primary_leg, cycle_start,
     pl.tight_layout()
     fig.savefig(output_filepath)
 
+def plot_muscle_activity(filepath, exc=None, act=None):
+
+    """Plots provided muscle activity and saves to a pdf file.
+
+    Parameters
+    ----------
+    filepath: string
+        Path name of pdf file to print to.
+    exc: pandas DataFrame
+        DataFrame containing muscle excitation and muscle name information.
+    act: pandas DataFrame
+        DataFrame containing muscle activation and muscle name information.
+    """
+
+    if not exc and not act:
+        raise Exception("Please provide either excitation or "
+            "activation information")
+    elif exc:
+        N = len(exc.columns)
+    else: 
+        N = len(act.columns)
+
+    # Create plots
+    num_rows = 5
+    num_cols = np.ceil(float(N) / num_rows)
+    pl.figure(figsize=(11, 8.5))
+    for i in range(N):
+        pl.subplot(num_rows, num_cols, i + 1)
+        if exc:
+            pl.plot(exc.index, exc[exc.columns[i]], label='e')
+        if act:
+            pl.plot(act.index, act[act.columns[i]], label='a')
+        pl.ylim(0, 1)
+        if i == 1:
+            pl.legend(frameon=False, fontsize=8)
+        if exc:
+            pl.title(exc.columns[i], fontsize=8)
+        else:
+            pl.title(act.columns[i], fontsize=8)
+        pl.autoscale(enable=True, axis='x', tight=True)
+        pl.xticks([])
+        pl.yticks([])
+    pl.tight_layout()
+    pl.savefig(filepath)
+
+def plot_reserve_activty(filepath, reserves):
+    
+    """Plots provided reservec acutator activations and saves to a pdf file.
+
+    Parameters
+    ----------
+    filepath: string
+        Path name of pdf file to print to.
+    reserves: pandas DataFrame
+        DataFrame containing reserve activity and name information.
+    """
+
+    pl.figure()
+    NR = len(reserves.columns)
+    for i in range(NR):
+        pl.subplot(NR, 1, i + 1)
+        pl.plot(reserves.index, reserves[reserves.columns[i]])
+        pl.ylim(-1, 1)
+        pl.title(reserves.columns[i], fontsize=8)
+        pl.axhline(0)
+        pl.autoscale(enable=True, axis='x', tight=True)
+    pl.tight_layout()
+    pl.savefig(filepath)
+
 def plot_joint_moment_breakdown(time, joint_moments, tendon_forces, 
-    moment_arms, dof_names, muscle_names, pdf_name, csv_name, ext_moments=None,
+    moment_arms, dof_names, muscle_names, pdf_path, csv_path, ext_moments=None,
      mass=None):
 
     """Plots net joint moments, individual muscle moments, and, if included,
@@ -841,10 +910,10 @@ def plot_joint_moment_breakdown(time, joint_moments, tendon_forces,
         List of strings containing degree-of-freedom names.
     muscle_names (Nmusc,): list
         List of strings containing muscle names.
-    pdf_name: string
-        Filename for PDF of final plots.
-    csv_name: string
-        Filename for CSV of moment breakdown data
+    pdf_path: string
+        Path and filename for PDF of final plots.
+    csv_path: string
+        Path and filename for CSV of moment breakdown data
     mass: kg
         (Optional). Subject mass to normalize moments by.
     ext_moments:
@@ -941,7 +1010,7 @@ def plot_joint_moment_breakdown(time, joint_moments, tendon_forces,
     ax.set_xlabel('time (% gait cycle)', fontsize=8)
 
     fig.tight_layout()
-    fig.savefig(pdf_name)
+    fig.savefig(pdf_path)
     pl.close(fig)
 
     multiindex_arrays = [dof_array, actuator_array]
@@ -953,7 +1022,7 @@ def plot_joint_moment_breakdown(time, joint_moments, tendon_forces,
         all_moments_array = (np.array(all_moments).transpose() / mass)
         moments_df = pd.DataFrame(all_moments_array, columns=columns,
             index=pgc_csv)
-        with file(csv_name, 'w') as f:
+        with file(csv_path, 'w') as f:
             f.write('# all columns are moments normalized by subject '
                 'mass (N-m/kg).\n')
             moments_df.to_csv(f)
