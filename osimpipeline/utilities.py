@@ -251,14 +251,45 @@ def hdf2pandas(filename,fieldname,isString=False, columns=None):
     f = h5py.File(filename)
     refs = f[fieldname]
 
-    if isString:
-        data = [f[ref].value.tobytes()[::2].decode() for ref in refs[:,0]]
+    if len(refs.shape)==3:
+        if not isString:
+            # Get transpose by flipping indices in list comprehension
+            data = [[refs[i,j,:] for j in range(refs.shape[1])] for i in range(refs.shape[0])]
+
+        return pd.Panel(data)
     else:
-        data = [refs[i,:] for i in range(refs.shape[0])]
+        if isString:
+            data = [f[ref].value.tobytes()[::2].decode() for ref in refs[:,0]]
+        else:
+            data = [refs[i,:] for i in range(refs.shape[0])]
 
-    data = zip(*data)
+        # Transpose 2D list
+        data = zip(*data)
+        return pd.DataFrame(data, columns=columns)
 
-    return pd.DataFrame(data, columns=columns)
+
+def hdf2numpy(filename,fieldname,isString=False):
+    """A function to extract data from HDF5 files into a useable format for scripting.
+    """
+    f = h5py.File(filename)
+    refs = f[fieldname]
+
+    if len(refs.shape)==3:
+        if not isString:
+            # Get transpose by flipping indices in list comprehension
+            data = [[refs[i,j,:] for j in range(refs.shape[1])] for i in range(refs.shape[0])]
+
+    else:
+        if isString:
+            data = [f[ref].value.tobytes()[::2].decode() for ref in refs[:,0]]
+        else:
+            data = [refs[i,:] for i in range(refs.shape[0])]
+
+        # Transpose 2D list
+        data = zip(*data)
+
+    return np.array(data)
+    
 
 def hdf2list(filename,fieldname,isString=False):
     """A function to extract data from HDF5 files into a useable format for scripting.
@@ -273,18 +304,6 @@ def hdf2list(filename,fieldname,isString=False):
 
     return data
 
-def hdf2numpy(filename,fieldname,isString=False):
-    """A function to extract data from HDF5 files into a useable format for scripting.
-    """
-    f = h5py.File(filename)
-    refs = f[fieldname]
-
-    if isString:
-        data = [f[ref].value.tobytes()[::2].decode() for ref in refs[:,0]]
-    else:
-        data = [f[ref].value for ref in refs[:,0]]
-
-    return np.array(data)
 
 class TRCFile(object):
     """A plain-text file format for storing motion capture marker trajectories.

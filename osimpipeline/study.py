@@ -249,8 +249,9 @@ class Trial(object):
         tasks = list()
         for i, cycle in enumerate(self.cycles):
 
+            # Put setup task at front of argument list
             if setup_tasks:
-                args = orig_args + (setup_tasks[i],)
+                args = (setup_tasks[i],) + orig_args 
 
             task = cycle.add_task(cls, *args, **kwargs)
 

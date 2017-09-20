@@ -10,11 +10,13 @@ import re
 import warnings
 
 import numpy as np
+import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
 import pylab as pl
 import tables
 from scipy.signal import butter, filtfilt
+import scipy.io as sio
 from numpy import nanmean, nanstd
 
 import platform
@@ -812,6 +814,149 @@ def plot_gait_torques(output_filepath, actu, primary_leg, cycle_start,
 
     pl.tight_layout()
     fig.savefig(output_filepath)
+
+def plot_joint_moment_breakdown(time, joint_moments, tendon_forces, 
+    moment_arms, dof_names, muscle_names, pdf_name, csv_name, ext_moments=None,
+     mass=None):
+
+    """Plots net joint moments, individual muscle moments, and, if included,
+    any external moments in the system. Prints a pdf file with plots and a csv
+    file containing data.
+
+    N:     # of time points
+    Ndof:  # of degrees-of-freedom
+    Nmusc: # of muscles 
+
+    Parameters
+    ----------
+    time (N,): Numpy array
+        Vector of time points
+    joint_moments (N, Ndof): Numpy array
+        Array of experimental net joint moments.
+    tendon_forces (N, Nmusc): Numpy array
+        Array of computed tendon forces.
+    moment_arms (N, Ndof, Nmusc): Numpy array
+        Array of muscle moment arms, corresponding to each joint.
+    dof_names (Ndof,): list
+        List of strings containing degree-of-freedom names.
+    muscle_names (Nmusc,): list
+        List of strings containing muscle names.
+    pdf_name: string
+        Filename for PDF of final plots.
+    csv_name: string
+        Filename for CSV of moment breakdown data
+    mass: kg
+        (Optional). Subject mass to normalize moments by.
+    ext_moments:
+        (Optional). External moments applied to each degree-of-freedom (i.e.
+        such as an exoskeleton device torque).
+
+    """
+
+    num_dofs = len(dof_names)
+    num_muscles = len(muscle_names)
+
+    # if ext_moments:
+    #     exo_torques = pd.read_csv(file_dep[1], index_col=0)
+    #     pgc_mod = 100.0 * ((exo_torques.index - exo_torques.index[0]) /
+    #             (exo_torques.index[-1] - exo_torques.index[0]))
+
+    # For writing moments to a file.
+    dof_array = list()
+    actuator_array = list()
+    moments_array = list()
+    all_moments = list()
+
+    import seaborn.apionly as sns
+    palette = sns.color_palette('muted')
+    num_colors = 6
+    sns.set_palette(palette)
+
+    pgc = 100.0 * (time - time[0]) / (time[-1] - time[0])
+    pgc_csv = np.linspace(0, 100, 400)
+    fig = pl.figure(figsize=(8.5, 11))
+    for idof in range(num_dofs):
+        dof_name = dof_names[idof]
+        ax = fig.add_subplot(num_dofs, 2, 2 * idof + 1)
+        net_integ = np.trapz(np.abs(joint_moments[:, idof]),
+                x=time)
+        sum_actuators_shown = np.zeros_like(time)
+        icolor = 0
+        for imusc in range(num_muscles):
+            muscle_name = muscle_names[imusc]
+            if np.any(moment_arms[:, idof, imusc]) > 0.00001:
+                this_moment = \
+                        tendon_forces[:, imusc] * moment_arms[:, idof, imusc];
+                mom_integ = np.trapz(np.abs(this_moment), time)
+                if mom_integ > 0.05 * net_integ:
+                    if np.floor(icolor / num_colors) == 0:
+                        ls = '-'
+                    elif np.floor(icolor / num_colors) == 1:
+                        ls = '--'
+                    else:
+                        ls = '-.'
+                    ax.plot(pgc, this_moment, label=muscle_name,
+                            linestyle=ls)
+                    dof_array.append(dof_name)
+                    actuator_array.append(muscle_name)
+                    all_moments.append(
+                            np.interp(pgc_csv, pgc, this_moment))
+
+                    sum_actuators_shown += this_moment
+                    icolor += 1
+
+        # if ext_moments:
+            # ext_col = -1
+            # for colname in exo_torques.columns:
+            #     if colname in dof_name:
+            #         exo_col = colname
+            #         break
+            # if exo_col == -1:
+            #     raise Exception('Could not find exo torque for DOF %s.' %
+            #             dof_name)
+            # if np.sum(np.abs(ext_[exo_col])) != 0:
+            #     sum_actuators_shown += exo_torques[exo_col]
+            #     ax.plot(pgc_mod, exo_torques[exo_col], color='blue',
+            #             linewidth=1.5, label='device')
+            #     dof_array.append(dof_name)
+            #     actuator_array.append('device')
+            #     all_moments.append(
+            #             np.interp(pgc_csv, pgc_mod, exo_torques[exo_col]))
+
+        ax.plot(pgc, sum_actuators_shown,
+                label='sum actuators shown', color='gray', linewidth=2)
+
+        ax.plot(pgc, joint_moments[:, idof], label='net',
+                color='black', linewidth=2)
+        dof_array.append(dof_name)
+        actuator_array.append('net')
+        all_moments.append(
+            np.interp(pgc_csv, pgc, joint_moments[:, idof]))
+
+        ax.set_title(dof_name, fontsize=8)
+        ax.set_ylabel('moment (N-m)', fontsize=8)
+        ax.legend(frameon=False, bbox_to_anchor=(1, 1),
+                loc='upper left', ncol=2, fontsize=8)
+        ax.tick_params(axis='both', labelsize=8)
+    ax.set_xlabel('time (% gait cycle)', fontsize=8)
+
+    fig.tight_layout()
+    fig.savefig(pdf_name)
+    pl.close(fig)
+
+    multiindex_arrays = [dof_array, actuator_array]
+    columns = pd.MultiIndex.from_arrays(multiindex_arrays,
+            names=['DOF', 'actuator'])
+
+    # Normalize by subject mass.
+    if mass:
+        all_moments_array = (np.array(all_moments).transpose() / mass)
+        moments_df = pd.DataFrame(all_moments_array, columns=columns,
+            index=pgc_csv)
+        with file(csv_name, 'w') as f:
+            f.write('# all columns are moments normalized by subject '
+                'mass (N-m/kg).\n')
+            moments_df.to_csv(f)
 
 ## Modeling ##
 ## ======== ##
