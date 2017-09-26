@@ -281,7 +281,6 @@ class ToolTask(TrialTask):
 class PostTask(TrialTask):
     def __init__(self, setup_task, trial, cycle=None):
         super(PostTask, self).__init__(trial)
-        self.name = '%s_%s_post' % (trial.id, setup_task.tool)
         self.methods = list()
         self.path = setup_task.path
         self.gl = None if not cycle else cycle.gl

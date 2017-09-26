@@ -829,10 +829,10 @@ def plot_muscle_activity(filepath, exc=None, act=None):
         DataFrame containing muscle activation and muscle name information.
     """
 
-    if not exc and not act:
+    if (exc is None) and (act is None):
         raise Exception("Please provide either excitation or "
             "activation information")
-    elif exc:
+    elif act is None:
         N = len(exc.columns)
     else: 
         N = len(act.columns)
@@ -843,14 +843,14 @@ def plot_muscle_activity(filepath, exc=None, act=None):
     pl.figure(figsize=(11, 8.5))
     for i in range(N):
         pl.subplot(num_rows, num_cols, i + 1)
-        if exc:
+        if not (exc is None):
             pl.plot(exc.index, exc[exc.columns[i]], label='e')
-        if act:
+        if not (act is None):
             pl.plot(act.index, act[act.columns[i]], label='a')
         pl.ylim(0, 1)
         if i == 1:
             pl.legend(frameon=False, fontsize=8)
-        if exc:
+        if not (exc is None):
             pl.title(exc.columns[i], fontsize=8)
         else:
             pl.title(act.columns[i], fontsize=8)
@@ -860,7 +860,7 @@ def plot_muscle_activity(filepath, exc=None, act=None):
     pl.tight_layout()
     pl.savefig(filepath)
 
-def plot_reserve_activty(filepath, reserves):
+def plot_reserve_activity(filepath, reserves):
     
     """Plots provided reservec acutator activations and saves to a pdf file.
 
@@ -886,7 +886,7 @@ def plot_reserve_activty(filepath, reserves):
 
 def plot_joint_moment_breakdown(time, joint_moments, tendon_forces, 
     moment_arms, dof_names, muscle_names, pdf_path, csv_path, ext_moments=None,
-     mass=None):
+     ext_names=None, ext_colors=None, mass=None):
 
     """Plots net joint moments, individual muscle moments, and, if included,
     any external moments in the system. Prints a pdf file with plots and a csv
@@ -924,11 +924,6 @@ def plot_joint_moment_breakdown(time, joint_moments, tendon_forces,
 
     num_dofs = len(dof_names)
     num_muscles = len(muscle_names)
-
-    # if ext_moments:
-    #     exo_torques = pd.read_csv(file_dep[1], index_col=0)
-    #     pgc_mod = 100.0 * ((exo_torques.index - exo_torques.index[0]) /
-    #             (exo_torques.index[-1] - exo_torques.index[0]))
 
     # For writing moments to a file.
     dof_array = list()
@@ -974,23 +969,39 @@ def plot_joint_moment_breakdown(time, joint_moments, tendon_forces,
                     sum_actuators_shown += this_moment
                     icolor += 1
 
-        # if ext_moments:
-            # ext_col = -1
-            # for colname in exo_torques.columns:
-            #     if colname in dof_name:
-            #         exo_col = colname
-            #         break
-            # if exo_col == -1:
-            #     raise Exception('Could not find exo torque for DOF %s.' %
-            #             dof_name)
-            # if np.sum(np.abs(ext_[exo_col])) != 0:
-            #     sum_actuators_shown += exo_torques[exo_col]
-            #     ax.plot(pgc_mod, exo_torques[exo_col], color='blue',
-            #             linewidth=1.5, label='device')
-            #     dof_array.append(dof_name)
-            #     actuator_array.append('device')
-            #     all_moments.append(
-            #             np.interp(pgc_csv, pgc_mod, exo_torques[exo_col]))
+        if ext_moments:
+            num_ext = len(ext_moments)
+            for iext in range(num_ext):
+
+                ext_moment = ext_moments[iext]
+                if ext_names:
+                    ext_name = ext_names[iext]
+                if ext_colors:
+                    ext_color = ext_colors[iext]
+
+                pgc_mod = 100.0 * (
+                    (ext_moment.index - ext_moment.index[0])*1.0 /
+                    (ext_moment.index[-1] - ext_moment.index[0])*1.0)
+ 
+                ext_col = -1
+                for colname in ext_moment.columns:
+                    if colname in dof_name:
+                        ext_col = colname
+                        break
+                if ext_col == -1:
+                    raise Exception('Could not find exo torque for DOF %s.' %
+                            dof_name)
+                if np.sum(np.abs(ext_moment[ext_col])) != 0:
+                    sum_actuators_shown += ext_moment[ext_col]
+                    ax.plot(pgc_mod, ext_moment[ext_col], 
+                        color= ext_color if ext_color else 'blue',
+                        label= ext_name if ext_name else 'external',
+                        ls='dashed',
+                        linewidth=1.5)
+                    dof_array.append(dof_name)
+                    actuator_array.append(ext_name if ext_name else 'external')
+                    all_moments.append(
+                            np.interp(pgc_csv, pgc_mod, ext_moment[ext_col]))
 
         ax.plot(pgc, sum_actuators_shown,
                 label='sum actuators shown', color='gray', linewidth=2)

@@ -3,6 +3,7 @@ import os
 import opensim as osm
 import numpy as np
 import pandas as pd
+import pylab as pl
 import warnings
 import h5py
 
@@ -245,7 +246,7 @@ def gait_landmarks_from_grf(mot_file,
 
     return right_foot_strikes, left_foot_strikes, right_toe_offs, left_toe_offs
 
-def hdf2pandas(filename,fieldname,isString=False, columns=None):
+def hdf2pandas(filename, fieldname, isString=False, labels=None):
     """A function to extract data from HDF5 files into a useable format for scripting.
     """
     f = h5py.File(filename)
@@ -265,7 +266,10 @@ def hdf2pandas(filename,fieldname,isString=False, columns=None):
 
         # Transpose 2D list
         data = zip(*data)
-        return pd.DataFrame(data, columns=columns)
+        if len(refs.shape)==1:
+            return pd.Series(data, index=labels)
+        elif len(refs.shape)==2:
+            return pd.DataFrame(data, columns=labels)
 
 
 def hdf2numpy(filename,fieldname,isString=False):
