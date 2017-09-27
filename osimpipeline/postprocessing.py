@@ -326,6 +326,7 @@ def plot_marker_error_general(output_filepath, marker_names, ymax, gl,
 
     pl.tight_layout()
     fig.savefig(output_filepath)
+    pl.close(fig)
 
 
 def plot_marker_error(output_filepath, marker_names, ymax, gl, *args, 
@@ -814,6 +815,7 @@ def plot_gait_torques(output_filepath, actu, primary_leg, cycle_start,
 
     pl.tight_layout()
     fig.savefig(output_filepath)
+    pl.close(fig)
 
 def plot_muscle_activity(filepath, exc=None, act=None):
 
@@ -840,7 +842,7 @@ def plot_muscle_activity(filepath, exc=None, act=None):
     # Create plots
     num_rows = 5
     num_cols = np.ceil(float(N) / num_rows)
-    pl.figure(figsize=(11, 8.5))
+    fig = pl.figure(figsize=(11, 8.5))
     for i in range(N):
         pl.subplot(num_rows, num_cols, i + 1)
         if not (exc is None):
@@ -859,6 +861,7 @@ def plot_muscle_activity(filepath, exc=None, act=None):
         pl.yticks([])
     pl.tight_layout()
     pl.savefig(filepath)
+    pl.close(fig)
 
 def plot_reserve_activity(filepath, reserves):
     
@@ -872,7 +875,7 @@ def plot_reserve_activity(filepath, reserves):
         DataFrame containing reserve activity and name information.
     """
 
-    pl.figure()
+    fig = pl.figure()
     NR = len(reserves.columns)
     for i in range(NR):
         pl.subplot(NR, 1, i + 1)
@@ -883,6 +886,7 @@ def plot_reserve_activity(filepath, reserves):
         pl.autoscale(enable=True, axis='x', tight=True)
     pl.tight_layout()
     pl.savefig(filepath)
+    pl.close(fig)
 
 def plot_joint_moment_breakdown(time, joint_moments, tendon_forces, 
     moment_arms, dof_names, muscle_names, pdf_path, csv_path, ext_moments=None,
