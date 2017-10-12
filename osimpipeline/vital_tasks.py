@@ -465,6 +465,7 @@ class TaskGRFGaitLandmarks(task.TrialTask):
     def __init__(self, trial,
                 right_grfy_column_name='ground_force_r_vy',
                 left_grfy_column_name='ground_force_l_vy',
+                threshold=5,
                 **kwargs):
         super(TaskGRFGaitLandmarks, self).__init__(trial)
         self.name = '%s_gait_landmarks' % trial.id
@@ -472,6 +473,7 @@ class TaskGRFGaitLandmarks(task.TrialTask):
         self.right_grfy_column_name = right_grfy_column_name
         self.left_grfy_column_name = left_grfy_column_name
         self.kwargs = kwargs
+        self.threshold = threshold
         self.add_action(
                 [trial.ground_reaction_fpath],
                 [os.path.join(trial.expdata_path, '..', '%s.pdf' % self.name)],
@@ -481,7 +483,7 @@ class TaskGRFGaitLandmarks(task.TrialTask):
         util.gait_landmarks_from_grf(file_dep[0],
                 right_grfy_column_name=self.right_grfy_column_name,
                 left_grfy_column_name=self.left_grfy_column_name,
-                threshold=5,
+                threshold=self.threshold,
                 do_plot=True,
                 **self.kwargs)
         pl.gcf().savefig(target[0])
