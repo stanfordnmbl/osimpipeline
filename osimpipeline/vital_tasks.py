@@ -33,16 +33,13 @@ class TaskCopyGenericModelFilesToResults(task.StudyTask):
                 [study.reserve_actuators_fpath],
                 self.copy_file)
 
-
         if study.source_rra_actuators_fpath:
-            print 'debug1'
             self.add_action(
                 [study.source_rra_actuators_fpath],
                 [study.rra_actuators_fpath],
                 self.copy_file)
 
         if study.source_cmc_actuators_fpath:
-            print 'debug2'
             self.add_action(
                 [study.source_cmc_actuators_fpath],
                 [study.cmc_actuators_fpath],
@@ -96,6 +93,8 @@ class TaskCopyMotionCaptureData(task.StudyTask):
 
         # self.add_action(self.registry.keys(), self.registry.values(),
         #         self.copy_files)
+        # May want to copy over files repeatedly during data processing,
+        # so get rid of dependencies for now.
         self.actions += [self.copy_files]
 
     def register_files(self):
