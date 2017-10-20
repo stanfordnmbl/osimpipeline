@@ -46,7 +46,7 @@ def nearest_index(array, val):
     return np.abs(array - val).argmin()
 
 def plot_lower_limb_kinematics(kinematics_q_fpath, gl=None,
-        kinematics_q_compare_fpath=None, compare_name=None):
+        kinematics_q_compare_fpath=None, compare_name=None, side=None):
     """Plots pelvis tilt, pelvis list, pelvis rotation, hip adduction, hip
     flexion, knee angle, and ankle angle for both limbs.
 
@@ -119,13 +119,22 @@ def plot_lower_limb_kinematics(kinematics_q_fpath, gl=None,
     plot_one((0, 0), 'pelvis_tilt', [-20, 10])
     plot_one((1, 0), 'pelvis_list', [-15, 15])
     plot_one((2, 0), 'pelvis_rotation', [-10, 10])
-    plot_both_sides((3, 0), 'hip_rotation', [-20, 20])
+    if side:
+        plot_one((3, 0), 'hip_rotation_%s' % side, [-20, 20])
+    else:
+        plot_both_sides((3, 0), 'hip_rotation', [-20, 20])
     pl.xlabel('time (% gait cycle)')
 
-    plot_both_sides((0, 1), 'hip_adduction', [-15, 15])
-    plot_both_sides((1, 1), 'hip_flexion', [-30, 50])
-    plot_both_sides((2, 1), 'knee_angle', [-10, 90])
-    plot_both_sides((3, 1), 'ankle_angle', [-40, 25])
+    if side:
+        plot_one((0, 1), 'hip_adduction_%s' % side, [-15, 15])
+        plot_one((1, 1), 'hip_flexion_%s' % side, [-30, 50])
+        plot_one((2, 1), 'knee_angle_%s' % side, [-10, 90])
+        plot_one((3, 1), 'ankle_angle_%s' % side, [-40, 25])
+    else:
+        plot_both_sides((0, 1), 'hip_adduction', [-15, 15])
+        plot_both_sides((1, 1), 'hip_flexion', [-30, 50])
+        plot_both_sides((2, 1), 'knee_angle', [-10, 90])
+        plot_both_sides((3, 1), 'ankle_angle', [-40, 25])
     pl.xlabel('time (% gait cycle)')
 
     pl.tight_layout() #fig) #, rect=[0, 0, 1, 0.95])
