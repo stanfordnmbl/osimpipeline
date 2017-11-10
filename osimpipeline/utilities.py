@@ -538,7 +538,28 @@ class TRCFile(object):
                 # add noise to each component of marker data.
                 self.data[self.marker_names[imarker] + components[iComponent]] += noise
 
-
+class Scale:
+    """Wrapper of org.opensim.modeling.Scale, that adds a convenience
+    constructor.
+    """
+    def __init__(self, body_name, x, y, z, scale_set=None):
+        """
+        Parameters
+        ----------
+        body_name : str
+            org.opensim.modeling.Scale.setSegmentName(body_name)
+        x, y, z : float
+            org.opensim.modeling.Scale.setScaleFactors([x, y, z])
+        scaleset : org.opensim.modeling.ScaleSet, optional
+            A ScaleSet to adopt-and-append the org.opensim.modeling.Scale to.
+        """
+        self.scale = osm.Scale()
+        self.scale.setName(body_name)
+        self.scale.setSegmentName(body_name)
+        self.scale.setScaleFactors(osm.Vec3(x, y, z))
+        if scale_set:
+            scale_set.cloneAndAppend(self.scale)
+                
 class Measurement:
     """Wrapper of org.opensim.modeling.Measurement with convenience methods.
 

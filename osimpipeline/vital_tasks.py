@@ -33,16 +33,13 @@ class TaskCopyGenericModelFilesToResults(task.StudyTask):
                 [study.reserve_actuators_fpath],
                 self.copy_file)
 
-
         if study.source_rra_actuators_fpath:
-            print 'debug1'
             self.add_action(
                 [study.source_rra_actuators_fpath],
                 [study.rra_actuators_fpath],
                 self.copy_file)
 
         if study.source_cmc_actuators_fpath:
-            print 'debug2'
             self.add_action(
                 [study.source_cmc_actuators_fpath],
                 [study.cmc_actuators_fpath],
@@ -94,8 +91,11 @@ class TaskCopyMotionCaptureData(task.StudyTask):
         self.regex_replacements = regex_replacements
         self.register_files()
 
-        self.add_action(self.registry.keys(), self.registry.values(),
-                self.copy_files)
+        # self.add_action(self.registry.keys(), self.registry.values(),
+        #         self.copy_files)
+        # May want to copy over files repeatedly during data processing,
+        # so get rid of dependencies for now.
+        self.actions += [self.copy_files]
 
     def register_files(self):
         # Keys are source file paths (file_dep), values are destination paths
@@ -121,7 +121,7 @@ class TaskCopyMotionCaptureData(task.StudyTask):
                             replacement, fpath_rel_to_mocap))
                         self.registry[fpath] = destination
 
-    def copy_files(self, file_dep, target):
+    def copy_files(self):
         for source, destination in self.registry.items():
             fname = os.path.split(source)[1]
             to_dir = os.path.split(destination)[0]
@@ -544,12 +544,14 @@ class TaskIK(task.ToolTask):
 
 class TaskIKPost(task.PostTask):
     REGISTRY=[]
-    def __init__(self, trial, ik_setup_task, error_markers=None, **kwargs):
+    def __init__(self, trial, ik_setup_task, error_markers=None, side=None,
+             **kwargs):
         super(TaskIKPost, self).__init__(ik_setup_task, trial, **kwargs)
         self.doc = 'Create plots from the results of Inverse Kinematics.'
         self.joint_angles_plotpath = '%s/joint_angles.pdf' % self.path
         self.marker_errors_plotpath = '%s/marker_error.pdf' % self.path
         self.error_markers = error_markers
+        self.side = side
 
         self.add_action([ik_setup_task.solution_fpath],
                         [self.joint_angles_plotpath],
@@ -566,7 +568,8 @@ class TaskIKPost(task.PostTask):
         # if os.path.exists(self.fig_fpath):
         #     os.rename(self.fig_fpath,
         #             self.fig_fpath.replace('.pdf', '_backup.pdf'))
-        fig = pp.plot_lower_limb_kinematics(file_dep[0], self.gl)
+        fig = pp.plot_lower_limb_kinematics(file_dep[0], self.gl, 
+            side=self.side)
         fig.savefig(target[0])
         pl.close(fig)
 

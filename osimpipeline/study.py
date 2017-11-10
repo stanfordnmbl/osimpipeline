@@ -140,8 +140,10 @@ class Trial(object):
 
             if not self.start_time:
                 self.start_time = self.get_mocap_start_time()
-            if not end_time:
+            if not self.end_time:
                 self.end_time = self.get_mocap_end_time()
+
+            self.heel_strikes = [self.start_time, self.end_time]
 
         elif gait_events:
             self.right_strikes = gait_events.get('right_strikes')
@@ -318,7 +320,7 @@ class Subject(object):
     def __init__(self, study, num, mass, metadata=None):
         self.study = study
         self.num = num
-        self.name = 'subject%02i' % num
+        self.name = 'subject%03i' % num
         self.mass = mass
         self.metadata = metadata
         # Relative path to the subject folder; can be used for the source
