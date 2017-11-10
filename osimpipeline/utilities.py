@@ -248,7 +248,7 @@ def gait_landmarks_from_grf(mot_file,
     return right_foot_strikes, left_foot_strikes, right_toe_offs, left_toe_offs
 
 
-def hdf2pandas(filename, fieldname, type=float, labels=None):
+def hdf2pandas(filename, fieldname, type=float, labels=None, index=None):
     """A function to extract data from HDF5 files into a useable format for
     scripting, in this case a Pandas data structure. This function may be used
     to import MATLAB files (.mat) provided that they are saved as version 7.3,
@@ -292,10 +292,12 @@ def hdf2pandas(filename, fieldname, type=float, labels=None):
         # Transpose 2D list
         data = zip(*data)
         if len(refs.shape)==1:
-            series_of_tuples = pd.Series(data, index=labels)
+            if index is None:
+                index = labels
+            series_of_tuples = pd.Series(data, index=index)
             return series_of_tuples.apply(pd.Series)
         elif len(refs.shape)==2:
-            return pd.DataFrame(data, columns=labels)
+            return pd.DataFrame(data, columns=labels, index=index)
 
 
 def hdf2numpy(filename, fieldname, type=float):
