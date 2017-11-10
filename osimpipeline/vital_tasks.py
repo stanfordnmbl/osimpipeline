@@ -10,7 +10,6 @@ import pandas as pd
 import numpy as np
 import scipy.io as sio
 from scipy.interpolate import interp1d
-import h5py
 
 import opensim as osm
 import utilities as util
