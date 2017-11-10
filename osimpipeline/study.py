@@ -125,7 +125,7 @@ class Trial(object):
         self.marker_trajectories_fpath = os.path.join(
                 self.expdata_path, 'marker_trajectories.trc')
         self.ground_reaction_fpath = os.path.join(
-                self.expdata_path, 'ground_reaction_orig.mot')
+                self.expdata_path, 'ground_reaction.mot')
         # Model used by RRA to create adjusted model. By default, this is set 
         # to the scaled model, but it can be set to a different model if the 
         # scaled model must be modifed (adding a backpack, etc.)
@@ -140,8 +140,10 @@ class Trial(object):
 
             if not self.start_time:
                 self.start_time = self.get_mocap_start_time()
-            if not end_time:
+            if not self.end_time:
                 self.end_time = self.get_mocap_end_time()
+
+            self.heel_strikes = [self.start_time, self.end_time]
 
         elif gait_events:
             self.right_strikes = gait_events.get('right_strikes')
@@ -249,8 +251,9 @@ class Trial(object):
         tasks = list()
         for i, cycle in enumerate(self.cycles):
 
+            # Put setup task at front of argument list
             if setup_tasks:
-                args = orig_args + (setup_tasks[i],)
+                args = (setup_tasks[i],) + orig_args 
 
             task = cycle.add_task(cls, *args, **kwargs)
 
@@ -317,7 +320,7 @@ class Subject(object):
     def __init__(self, study, num, mass, metadata=None):
         self.study = study
         self.num = num
-        self.name = 'subject%02i' % num
+        self.name = 'subject%03i' % num
         self.mass = mass
         self.metadata = metadata
         # Relative path to the subject folder; can be used for the source
@@ -375,10 +378,11 @@ class Study(object):
     repository, since different users might choose different values for these
     settings.
     """
-    def __init__(self, name, generic_model_fpath, rra_actuators_fpath=None,
-        cmc_actuators_fpath=None):
+    def __init__(self, name, generic_model_fpath, reserve_actuators_fpath,
+        rra_actuators_fpath=None, cmc_actuators_fpath=None):
         self.name = name
         self.source_generic_model_fpath = generic_model_fpath
+        self.source_reserve_actuators_fpath = reserve_actuators_fpath
         self.source_rra_actuators_fpath = rra_actuators_fpath
         self.source_cmc_actuators_fpath = cmc_actuators_fpath
         try:
@@ -387,10 +391,18 @@ class Study(object):
         except Exception as e:
             raise Exception(e.message +
                     "\nMake sure there is a config.yaml next to dodo.py")
+            
+        if not 'results_path' in self.config:
+            self.config['results_path'] = '../results'
+        if not 'analysis_path' in self.config:
+            self.config['analysis_path'] = '../analysis'
+
         # The copy in the results directory.
         self.generic_model_fpath = os.path.join(self.config['results_path'],
                 'generic_model.osim')
                 #os.path.basename(generic_model_fpath))
+        self.reserve_actuators_fpath = os.path.join(
+            self.config['results_path'], 'reserve_actuators.xml')
         self.rra_actuators_fpath = os.path.join(self.config['results_path'],
                 'rra_actuators.xml')
         self.cmc_actuators_fpath = os.path.join(self.config['results_path'],
