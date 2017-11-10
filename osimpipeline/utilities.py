@@ -267,7 +267,8 @@ def hdf2pandas(filename, fieldname, isString=False, labels=None):
         # Transpose 2D list
         data = zip(*data)
         if len(refs.shape)==1:
-            return pd.Series(data, index=labels)
+            series_of_tuples = pd.Series(data, index=labels)
+            return series_of_tuples.apply(pd.Series)
         elif len(refs.shape)==2:
             return pd.DataFrame(data, columns=labels)
 
