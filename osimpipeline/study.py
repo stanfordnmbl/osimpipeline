@@ -320,7 +320,7 @@ class Subject(object):
     def __init__(self, study, num, mass, metadata=None):
         self.study = study
         self.num = num
-        self.name = 'subject%03i' % num
+        self.name = 'subject%02i' % num
         self.mass = mass
         self.metadata = metadata
         # Relative path to the subject folder; can be used for the source

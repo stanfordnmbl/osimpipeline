@@ -1,7 +1,7 @@
 
 import os
 import sys
-#import opensim as osm
+import opensim as osm
 import numpy as np
 import pandas as pd
 import pylab as pl

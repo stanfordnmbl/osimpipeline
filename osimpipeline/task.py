@@ -139,7 +139,7 @@ class SetupTask(TrialTask):
             first_cycle = trial.cycles[0]
             last_cycle = trial.cycles[-1]
             self.init_time = first_cycle.start
-            self.final_time = last_cycle.end
+            self.final_time = last_cycle.end+0.5
 
         self.source_path = os.path.join(trial.rel_path, self.tool)
         self.source_extloads_fpath = os.path.join(self.source_path,
