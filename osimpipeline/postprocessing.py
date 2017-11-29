@@ -45,6 +45,146 @@ def savefigtolog(figname, *args, **kwargs):
 def nearest_index(array, val):
     return np.abs(array - val).argmin()
 
+def average_cycles(self,kinematics_q_fpath,f_name):
+    sto = storage2numpy(kinematics_q_fpath)
+
+    cycle_start = [cycle.gl.cycle_start for cycle in self.trial.cycles]
+    cycle_end = [cycle.gl.cycle_end for cycle in self.trial.cycles]
+    cycle_start_ind = [nearest_index(sto['time'],time) for time in cycle_start]
+    cycle_end_ind = [nearest_index(sto['time'],time) for time in cycle_end]
+
+    names = sto.dtype.names
+    ang_avg = []
+    for name in names:
+        if name == 'time':
+            ang_avg.append(range(0,101))
+        else:
+            temp = [np.interp(range(0,101),percent_duration(sto['time'][s:e]),sto[name][s:e]) for s,e in zip(cycle_start_ind,cycle_end_ind)]
+            temp = np.mean(temp,axis=0)
+            ang_avg.append(temp)
+
+    ang_avg_mat = np.matrix(ang_avg)
+    with open(f_name, 'wb') as f:
+        f.write('endheader\n')
+        f.write('\t'.join(names))
+        f.write('\n')
+        np.savetxt(f, ang_avg_mat.transpose(), delimiter='\t')
+
+def plot_lower_limb_kinematics_mod(self, kinematics_q_fpath, gl=None,
+        kinematics_q_compare_fpath=None, compare_name=None, side=None,
+        dofs=None, avg=False):
+    """Plots pelvis tilt, pelvis list, pelvis rotation, hip adduction, hip
+    flexion, knee angle, and ankle angle for both limbs.
+
+    Parameters
+    ----------
+    kinematics_q_fpath : str
+        Path to a Kinematics_q.sto file.
+    gl : dataman.GaitLandmarks, optional
+        If provided, the plots are for a single gait cycle.
+    kinematics_q_compare_fpath : str, optional
+        Want to compare kinematics to another set of kinematics? Provide the
+        kinematics_q file here.
+    compare_name : str, optional
+        The name to use in the legend for the above comparison kinematics. Must
+        be provided if kinematics_q_compare_fpath is provided.
+
+    Returns
+    -------
+    fig : pylab.figure
+
+    """
+    fig = pl.figure(figsize=(7, 10))
+    dims = (4, 2)
+
+    if kinematics_q_compare_fpath:
+        sto2 = storage2numpy(kinematics_q_compare_fpath)
+        pl.suptitle('transparent lines: %s' % compare_name)
+
+    if avg:
+        self.num_cond = len(self.cond_list)
+        self.colors=['grey',(0.662, 0.047, 0.913),(0.094, 0.756, 0.905),(0.094, 0.905, 0.266),(0.964, 0.607, 0.074)]
+    else:
+        self.num_cond = 1;
+
+    def common():
+        pl.minorticks_on()
+        pl.grid(b=True, which='major', axis='y', color='gray', linestyle='--')
+        pl.grid(b=True, which='minor', axis='y', color='gray', linestyle=':')
+        if gl != None:
+            pl.xlim(0, 100)
+
+    def plot(time, y, label, side, *args, **kwargs):
+        if gl != None:
+            plot_pgc(time, y, gl, side=side, plot_toeoff=False, label=label,
+                    *args, **kwargs)
+        else:
+            pl.plot(time, y, label=label, *args, **kwargs)
+
+    def plot_coord(coord, side='right', *args, **kwargs):
+        if kinematics_q_compare_fpath:
+            plot(sto2['time'], sto2[coord], None, side, alpha=0.5,
+                    *args, **kwargs)
+        for i in range(self.num_cond):
+            if avg:
+                sto = storage2numpy(kinematics_q_fpath[i])
+                kwargs['color'] = self.colors[i]
+            else:
+                sto = storage2numpy(kinematics_q_fpath)
+            plot(sto['time'], sto[coord], side, side,
+                *args, **kwargs)
+
+    def plot_one(loc, coord, ylim):
+        ax = pl.subplot2grid(dims, loc)
+        plot_coord(coord, color='blue')
+        pl.ylim(ylim)
+        pl.axhline(0, color='gray', zorder=0)
+        pl.title(coord)
+        common()
+    colors = {'left': 'blue', 'right': 'red'}
+
+    def plot_both_sides(loc, coord_pre, ylim):
+        ax = pl.subplot2grid(dims, loc)
+        for side in ['left', 'right']:
+            coord = '%s_%s' % (coord_pre, side[0])
+            plot_coord(coord, side, color=colors[side])
+        pl.legend(frameon=False)
+        pl.ylim(ylim)
+        pl.axhline(0, color='gray', zorder=0)
+        pl.title(coord_pre)
+        common()
+
+    if dofs != None:
+        dims=(3,1)
+        plot_one((0, 0), 'hip_flexion_%s' % side, [-30, 50])
+        plot_one((1, 0), 'knee_angle_%s' % side, [-10, 90])
+        plot_one((2, 0), 'ankle_angle_%s' % side, [-40, 25])
+
+    else:
+        plot_one((0, 0), 'pelvis_tilt', [-20, 10])
+        plot_one((1, 0), 'pelvis_list', [-15, 15])
+        plot_one((2, 0), 'pelvis_rotation', [-10, 10])
+        if side:
+            plot_one((3, 0), 'hip_rotation_%s' % side, [-20, 20])
+        else:
+            plot_both_sides((3, 0), 'hip_rotation', [-20, 20])
+        pl.xlabel('time (% gait cycle)')
+
+        if side:
+            plot_one((0, 1), 'hip_adduction_%s' % side, [-15, 15])
+            plot_one((1, 1), 'hip_flexion_%s' % side, [-30, 50])
+            plot_one((2, 1), 'knee_angle_%s' % side, [-10, 90])
+            plot_one((3, 1), 'ankle_angle_%s' % side, [-40, 25])
+        else:
+            plot_both_sides((0, 1), 'hip_adduction', [-15, 15])
+            plot_both_sides((1, 1), 'hip_flexion', [-30, 50])
+            plot_both_sides((2, 1), 'knee_angle', [-10, 90])
+            plot_both_sides((3, 1), 'ankle_angle', [-40, 25])
+    pl.xlabel('time (% gait cycle)')
+
+    pl.tight_layout() #fig) #, rect=[0, 0, 1, 0.95])
+    return fig
+
 def plot_lower_limb_kinematics(kinematics_q_fpath, gl=None,
         kinematics_q_compare_fpath=None, compare_name=None, side=None):
     """Plots pelvis tilt, pelvis list, pelvis rotation, hip adduction, hip
@@ -87,7 +227,6 @@ def plot_lower_limb_kinematics(kinematics_q_fpath, gl=None,
         if gl != None:
             plot_pgc(time, y, gl, side=side, plot_toeoff=True, label=label,
                     *args, **kwargs)
-
         else:
             pl.plot(time, y, label=label, *args, **kwargs)
 
@@ -105,6 +244,7 @@ def plot_lower_limb_kinematics(kinematics_q_fpath, gl=None,
         pl.title(coord)
         common()
     colors = {'left': 'blue', 'right': 'red'}
+
     def plot_both_sides(loc, coord_pre, ylim):
         ax = pl.subplot2grid(dims, loc)
         for side in ['left', 'right']:
@@ -140,7 +280,7 @@ def plot_lower_limb_kinematics(kinematics_q_fpath, gl=None,
     pl.tight_layout() #fig) #, rect=[0, 0, 1, 0.95])
     return fig
 
-def marker_error(model_filepath, model_markers_filepath, 
+def marker_error(model_filepath, model_markers_filepath,
     marker_trc_filepath):
     """Creates an ndarray containing time histories of marker errors between
     experimental marker trajectories and model marker trajectories from IK.
@@ -183,13 +323,13 @@ def marker_error(model_filepath, model_markers_filepath,
     time = model_markers['time']
 
     for mname in marker_names:
- 
+
         if not (mname + '_tx') in model_markers.dtype.names:
             print ("WARNING: " + mname + " model marker locations not found. "
                 "An IK task may not have been specified for this marker. "
                 "Skipping...")
         else:
-            x_model_loc = model_markers[mname + '_tx']  
+            x_model_loc = model_markers[mname + '_tx']
             y_model_loc = model_markers[mname + '_ty']
             z_model_loc = model_markers[mname + '_tz']
 
@@ -197,21 +337,21 @@ def marker_error(model_filepath, model_markers_filepath,
 
                 exp_loc = trc.marker_at(mname, time[i])
                 exp_loc = np.array(exp_loc) * 0.001
-                
+
                 distance = np.sqrt(
                             (x_model_loc[i] - exp_loc[0])**2 +
                             (y_model_loc[i] - exp_loc[1])**2 +
                             (z_model_loc[i] - exp_loc[2])**2
                             )
                 marker_err[mname].append(distance)
-    
+
     for t in model_markers['time']:
-        marker_err['time'].append(t) 
+        marker_err['time'].append(t)
 
     return marker_err
 
 
-def marker_error_from_kinematics(model_filepath, states_storage, 
+def marker_error_from_kinematics(model_filepath, states_storage,
     marker_trc_filepath, indegrees=False):
     """Creates an ndarray containing time histories of marker errors between
     experimental marker trajectories and joint-space kinematics (from RRA
@@ -309,7 +449,7 @@ def plot_marker_error_general(output_filepath, marker_names, ymax, gl,
     fig = pl.figure(figsize=(12, 4 * np.ceil(len(marker_names) * 0.5)))
     for imark, marker_name in enumerate(marker_names):
         pl.subplot(np.ceil(len(marker_names) * 0.5), 2, imark + 1)
-        if (marker_name[0] == '.' or marker_name[0] == '_' 
+        if (marker_name[0] == '.' or marker_name[0] == '_'
             or marker_name[0]=='*'):
 
             if marker_name[0]=='*':
@@ -317,9 +457,9 @@ def plot_marker_error_general(output_filepath, marker_names, ymax, gl,
 
             for side in ['R', 'L']:
                 name = '%s%s' % (side, marker_name)
-                plot(data['time'], mult * np.array(data[name]), side, 
+                plot(data['time'], mult * np.array(data[name]), side,
                     label=name)
-                
+
         else:
             plot(np.array(data['time']), mult * np.array(data[marker_name]),
                 label=marker_name)
@@ -338,7 +478,7 @@ def plot_marker_error_general(output_filepath, marker_names, ymax, gl,
     pl.close(fig)
 
 
-def plot_marker_error(output_filepath, marker_names, ymax, gl, *args, 
+def plot_marker_error(output_filepath, marker_names, ymax, gl, *args,
     **kwargs):
     data = marker_error(*args, **kwargs)
     plot_marker_error_general(output_filepath, marker_names, ymax, gl, data)
@@ -381,7 +521,7 @@ def data_by_pgc(time, data, gl, side='left'):
     if strike < gl.cycle_start:
         strike += cycle_duration
     if strike > gl.cycle_end:
-        strike -= cycle_duration                   
+        strike -= cycle_duration
 
     ts, ys = shift_data_to_cycle(gl.cycle_start,
             gl.cycle_end, strike, time, data)
@@ -845,7 +985,7 @@ def plot_muscle_activity(filepath, exc=None, act=None):
             "activation information")
     elif act is None:
         N = len(exc.columns)
-    else: 
+    else:
         N = len(act.columns)
 
     # Create plots
@@ -873,7 +1013,7 @@ def plot_muscle_activity(filepath, exc=None, act=None):
     pl.close(fig)
 
 def plot_reserve_activity(filepath, reserves):
-    
+
     """Plots provided reservec acutator activations and saves to a pdf file.
 
     Parameters
@@ -897,7 +1037,7 @@ def plot_reserve_activity(filepath, reserves):
     pl.savefig(filepath)
     pl.close(fig)
 
-def plot_joint_moment_breakdown(time, joint_moments, tendon_forces, 
+def plot_joint_moment_breakdown(time, joint_moments, tendon_forces,
     moment_arms, dof_names, muscle_names, pdf_path, csv_path, ext_moments=None,
      ext_names=None, ext_colors=None, mass=None):
 
@@ -907,7 +1047,7 @@ def plot_joint_moment_breakdown(time, joint_moments, tendon_forces,
 
     N:     # of time points
     Ndof:  # of degrees-of-freedom
-    Nmusc: # of muscles 
+    Nmusc: # of muscles
 
     Parameters
     ----------
@@ -995,7 +1135,7 @@ def plot_joint_moment_breakdown(time, joint_moments, tendon_forces,
                 pgc_mod = 100.0 * (
                     (ext_moment.index - ext_moment.index[0])*1.0 /
                     (ext_moment.index[-1] - ext_moment.index[0])*1.0)
- 
+
                 ext_col = -1
                 for colname in ext_moment.columns:
                     if colname in dof_name:
@@ -1006,7 +1146,7 @@ def plot_joint_moment_breakdown(time, joint_moments, tendon_forces,
                             dof_name)
                 if np.sum(np.abs(ext_moment[ext_col])) != 0:
                     sum_actuators_shown += ext_moment[ext_col]
-                    ax.plot(pgc_mod, ext_moment[ext_col], 
+                    ax.plot(pgc_mod, ext_moment[ext_col],
                         color= ext_color if ext_color else 'blue',
                         label= ext_name if ext_name else 'external',
                         ls='dashed',
@@ -1151,7 +1291,7 @@ def set_model_state_from_storage(model, storage, time, state=None,
         state = model.initState()
 
     state_names = storage.getColumnLabels()
-    
+
     n_states = state_names.getSize()
 
     # Interpolate the data to obtain the state (placed into sto_state) at the
@@ -1173,8 +1313,7 @@ def set_model_state_from_storage(model, storage, time, state=None,
 
     # TODO Maybe CAN rely on this.
     state.setTime(time)
-    
+
     model.assemble(state)
 
     return state
-
