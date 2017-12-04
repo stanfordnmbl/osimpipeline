@@ -45,8 +45,11 @@ def savefigtolog(figname, *args, **kwargs):
 def nearest_index(array, val):
     return np.abs(array - val).argmin()
 
-def average_cycles(self,kinematics_q_fpath,f_name):
+def average_cycles(self, kinematics_q_fpath, f_name):
     sto = storage2numpy(kinematics_q_fpath)
+
+    # TODO: extra cycle?
+    self.trial.cycles.pop()
 
     cycle_start = [cycle.gl.cycle_start for cycle in self.trial.cycles]
     cycle_end = [cycle.gl.cycle_end for cycle in self.trial.cycles]
