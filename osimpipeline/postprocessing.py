@@ -781,6 +781,7 @@ def percent_duration(time, start=None, end=None):
         Varies from 0 to 100.
 
     """
+
     if start == None: start = time[0]
     if end == None: end = time[-1]
     return (time - start) / (end - start) * 100.0
