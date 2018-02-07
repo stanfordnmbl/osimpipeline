@@ -48,10 +48,10 @@ class Task(object):
         The arguments `file_dep` and `target` should be lists or dicts.
 
         """
-        if type(file_dep) == list:
-            self.file_dep += file_dep
-        else:
-            self.file_dep += file_dep.values()
+        # if type(file_dep) == list:
+        #     self.file_dep += file_dep
+        # else:
+        #     self.file_dep += file_dep.values()
         if type(target) == list:
             self.targets += target
         else:
@@ -110,7 +110,7 @@ class TrialTask(SubjectTask):
         self.trial = trial
 
 class SetupTask(TrialTask):
-    def __init__(self, tool, trial, cycle=None):
+    def __init__(self, tool, trial, pathext=None, cycle=None):
         super(SetupTask, self).__init__(trial)
         self.tool = tool
         self.trial = trial
@@ -140,6 +140,10 @@ class SetupTask(TrialTask):
             last_cycle = trial.cycles[-1]
             self.init_time = first_cycle.start
             self.final_time = last_cycle.end+0.5
+
+        if pathext:
+            self.path = os.path.join(self.path, pathext)
+            if not os.path.exists(self.path): os.makedirs(self.path)
 
         self.source_path = os.path.join(trial.rel_path, self.tool)
         self.source_extloads_fpath = os.path.join(self.source_path,
