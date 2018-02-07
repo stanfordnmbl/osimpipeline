@@ -1,5 +1,6 @@
 
 import os
+import sys
 import opensim as osm
 import numpy as np
 import pandas as pd
@@ -246,20 +247,44 @@ def gait_landmarks_from_grf(mot_file,
 
     return right_foot_strikes, left_foot_strikes, right_toe_offs, left_toe_offs
 
-def hdf2pandas(filename, fieldname, isString=False, labels=None):
-    """A function to extract data from HDF5 files into a useable format for scripting.
+
+def hdf2pandas(filename, fieldname, type=float, labels=None, index=None):
+    """A function to extract data from HDF5 files into a useable format for
+    scripting, in this case a Pandas data structure. This function may be used
+    to import MATLAB files (.mat) provided that they are saved as version 7.3,
+    to ensure HDF compatibility.
+
+    Parameters
+    ----------
+    filename : str
+        Filename including full (or relative) path to HDF file.
+    fieldname : str
+        Path to desired field in HDF file. Traversing layers of file is done by
+        using forward slashes, e.g. 'structLevel1/structLevel2/desiredData'.
+    type : (optional)
+        Specify data type in HDF file. Only used for data extraction in the 
+        special case for strings.
+    labels : list<string>
+        List of strings containing labels to be set as the index in the case 
+        of a 1D HDF to pandas.Series conversion, or set as the column labels
+        in a 2D HDF to pandas.DataFrame conversion.
     """
     f = h5py.File(filename)
     refs = f[fieldname]
 
     if len(refs.shape)==3:
-        if not isString:
+        if type is str:
+            # TODO
+            NotImplementedError("Conversion from HDF to Panel for type string "
+                " not supported.")
+        else:
             # Get transpose by flipping indices in list comprehension
-            data = [[refs[i,j,:] for j in range(refs.shape[1])] for i in range(refs.shape[0])]
+            data = [[refs[i,j,:] for j in range(refs.shape[1])] for i in range(
+                refs.shape[0])]
 
         return pd.Panel(data)
     else:
-        if isString:
+        if type is str:
             data = [f[ref].value.tobytes()[::2].decode() for ref in refs[:,0]]
         else:
             data = [refs[i,:] for i in range(refs.shape[0])]
@@ -267,25 +292,46 @@ def hdf2pandas(filename, fieldname, isString=False, labels=None):
         # Transpose 2D list
         data = zip(*data)
         if len(refs.shape)==1:
-            series_of_tuples = pd.Series(data, index=labels)
+            if index is None:
+                index = labels
+            series_of_tuples = pd.Series(data, index=index)
             return series_of_tuples.apply(pd.Series)
         elif len(refs.shape)==2:
-            return pd.DataFrame(data, columns=labels)
+            return pd.DataFrame(data, columns=labels, index=index)
 
 
-def hdf2numpy(filename,fieldname,isString=False):
-    """A function to extract data from HDF5 files into a useable format for scripting.
+def hdf2numpy(filename, fieldname, type=float):
+    """A function to extract data from HDF5 files into a useable format for
+    scripting, in this case a NumPy array. This function may be used to import
+    MATLAB files (.mat) provided that they are saved as version 7.3, to ensure
+    HDF compatibility.
+
+    Parameters
+    ----------
+    filename : str
+        Filename including full (or relative) path to HDF file.
+    fieldname : str
+        Path to desired field in HDF file. Traversing layers of file is done by
+        using forward slashes, e.g. 'structLevel1/structLevel2/desiredData'.
+    type : (optional)
+        Specify data type in HDF file. Only used for data extraction in the 
+        special case for strings.
     """
     f = h5py.File(filename)
     refs = f[fieldname]
 
     if len(refs.shape)==3:
-        if not isString:
+        if type is str:
+            # TODO
+            NotImplementedError("Conversion from HDF to Panel for type string "
+                " not supported.")
+        else:
             # Get transpose by flipping indices in list comprehension
-            data = [[refs[i,j,:] for j in range(refs.shape[1])] for i in range(refs.shape[0])]
+            data = [[refs[i,j,:] for j in range(refs.shape[1])] for i in range(
+                refs.shape[0])]
 
     else:
-        if isString:
+        if type is str:
             data = [f[ref].value.tobytes()[::2].decode() for ref in refs[:,0]]
         else:
             data = [refs[i,:] for i in range(refs.shape[0])]
@@ -294,15 +340,29 @@ def hdf2numpy(filename,fieldname,isString=False):
         data = zip(*data)
 
     return np.array(data)
-    
 
-def hdf2list(filename,fieldname,isString=False):
-    """A function to extract data from HDF5 files into a useable format for scripting.
+
+def hdf2list(filename, fieldname, type=float):
+    """A function to extract data from HDF5 files into a useable format for
+    scripting, in this case a Python list. This function may be used to import
+    MATLAB files (.mat) provided that they are saved as version 7.3, to ensure
+    HDF compatibility.
+
+    Parameters
+    ----------
+    filename : str
+        Filename including full (or relative) path to HDF file.
+    fieldname : str
+        Path to desired field in HDF file. Traversing layers of file is done by
+        using forward slashes, e.g. 'structLevel1/structLevel2/desiredData'.
+    type : (optional)
+        Specify data type in HDF file. Only used for data extraction in the 
+        special case for strings.
     """
     f = h5py.File(filename)
     refs = f[fieldname]
 
-    if isString:
+    if type is str:
         data = [f[ref].value.tobytes()[::2].decode() for ref in refs[:,0]]
     else:
         data = [f[ref].value for ref in refs[:,0]]
