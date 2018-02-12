@@ -123,9 +123,10 @@ class Trial(object):
                 self.study.config['results_path'], 'experiments',
                 self.rel_path, 'expdata')
         self.marker_trajectories_fpath = os.path.join(
-                self.expdata_path, 'marker_trajectories.trc')
+                self.expdata_path, 'marker_trajectories.trc').replace('////', 
+                    '//')
         self.ground_reaction_fpath = os.path.join(
-                self.expdata_path, 'ground_reaction.mot')
+                self.expdata_path, 'ground_reaction.mot').replace('\\\\', '\\')
         # Model used by RRA to create adjusted model. By default, this is set 
         # to the scaled model, but it can be set to a different model if the 
         # scaled model must be modifed (adding a backpack, etc.)
@@ -320,7 +321,7 @@ class Subject(object):
     def __init__(self, study, num, mass, metadata=None):
         self.study = study
         self.num = num
-        self.name = 'subject%02i' % num
+        self.name = 'subject%03i' % num
         self.mass = mass
         self.metadata = metadata
         # Relative path to the subject folder; can be used for the source
