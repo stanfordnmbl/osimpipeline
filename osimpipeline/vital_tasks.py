@@ -53,7 +53,7 @@ class TaskCopyMotionCaptureData(task.StudyTask):
     The other tasks expect an `expdata` folder in the condition folder (for
     treadmill trials) that contains `marker_trajectories.trc` and
     `ground_reaction.mot`.
-    
+
     Task name: `<study.name>_copy_data`
     """
     REGISTRY = [] # TODO Find a way to make this unnecessary.
@@ -62,7 +62,7 @@ class TaskCopyMotionCaptureData(task.StudyTask):
 
         Parameters
         ----------
-        study : 
+        study :
             This argument is provided internally by `study.add_task()`.
         regex_replacements : list of tuples
             Each tuple should have two elements: (a) the pattern to match with
@@ -141,7 +141,7 @@ class TaskScaleSetup(task.SubjectTask):
     individual subjects. The fields @STUDYNAME@ and @SUBJECTNAME@ in the
     template will be replaced by the correct values. You can find an example
     template in osimpipeline's templates directory.
-    
+
     Task name: `subject<num>_scale_setup`
     """
     REGISTRY = []
@@ -310,12 +310,12 @@ class TaskScaleSetup(task.SubjectTask):
         if not os.path.exists(self.results_scale_path):
             os.makedirs(self.results_scale_path)
         tool.printToXML(target['setup'])
-            
+
 
 class TaskScale(task.SubjectTask):
     REGISTRY = []
     residual_actuators_template = 'templates/residual_actuators.xml'
-    def __init__(self, subject, scale_setup_task, 
+    def __init__(self, subject, scale_setup_task,
             ignore_nonexistant_data=False,
             ):
         super(TaskScale, self).__init__(subject)
@@ -490,9 +490,9 @@ class TaskIKSetup(task.SetupTask):
     def __init__(self, trial, **kwargs):
         super(TaskIKSetup, self).__init__('ik', trial, **kwargs)
         self.doc = 'Create a setup file for Inverse Kinematics.'
-        self.solution_fpath = os.path.join(self.path, 
+        self.solution_fpath = os.path.join(self.path,
             '%s_%s_ik_solution.mot' % (self.study.name, self.tricycle.id))
-        self.model_markers_fpath = os.path.join(self.path, 
+        self.model_markers_fpath = os.path.join(self.path,
             'ik_model_marker_locations.sto')
 
         # Fill out tasks.xml template and copy over to results directory
@@ -507,16 +507,16 @@ class TaskIKSetup(task.SetupTask):
             content = ft.read()
             content = content.replace('@STUDYNAME@', self.study.name)
             content = content.replace('@NAME@', self.tricycle.id)
-            content = content.replace('@MODEL@', 
+            content = content.replace('@MODEL@',
                 os.path.relpath(self.subject.scaled_model_fpath, self.path))
             content = content.replace('@MARKER_FILE@',
-                os.path.relpath(self.trial.marker_trajectories_fpath, 
+                os.path.relpath(self.trial.marker_trajectories_fpath,
                     self.path))
             content = content.replace('@TASKS@', os.path.relpath(
                 self.results_tasks_fpath, self.path))
             content = content.replace('@INIT_TIME@', '%.4f' % init_time)
             content = content.replace('@FINAL_TIME@', '%.4f' % final_time)
-        
+
         with open(target[0], 'w') as f:
             f.write(content)
 
@@ -526,7 +526,7 @@ class TaskIK(task.ToolTask):
     def __init__(self, trial, ik_setup_task, **kwargs):
         super(TaskIK, self).__init__(ik_setup_task, trial, **kwargs)
         self.doc = "Run OpenSim's Inverse Kinematics tool."
-        
+
         self.file_dep += [
                 self.subject.scaled_model_fpath,
                 ik_setup_task.results_tasks_fpath,
@@ -545,6 +545,8 @@ class TaskIKPost(task.PostTask):
         super(TaskIKPost, self).__init__(ik_setup_task, trial, **kwargs)
         self.doc = 'Create plots from the results of Inverse Kinematics.'
         self.joint_angles_plotpath = '%s/joint_angles.pdf' % self.path
+        self.avg_joint_angles_plotpath = '%s/avg_joint_angles.pdf' % self.path
+        self.avg_joint_angles_filepath = '%s/avg_joint_angles.txt' % self.path
         self.marker_errors_plotpath = '%s/marker_error.pdf' % self.path
         self.error_markers = error_markers
         self.side = side
@@ -554,17 +556,35 @@ class TaskIKPost(task.PostTask):
                         self.joint_angle_plots)
 
         if self.error_markers:
-            self.add_action([self.subject.scaled_model_fpath, 
+            self.add_action([self.subject.scaled_model_fpath,
                             ik_setup_task.model_markers_fpath,
                             self.trial.marker_trajectories_fpath],
                             [self.marker_errors_plotpath],
                             self.marker_error_plots)
 
+        if self.trial.cycles:
+            self.add_action([ik_setup_task.solution_fpath],
+                        [self.avg_joint_angles_plotpath,
+                        self.avg_joint_angles_filepath],
+                        self.avg_joint_angle_plot)
+
+    def avg_joint_angle_plot(self, file_dep, target):
+        for cycle in self.trial.cycles:
+            fig = pp.plot_lower_limb_kinematics_mod(self,file_dep[0], cycle.gl, side = self.side)
+            f_name='%s\\joint_angles_cycle%s.pdf' % (self.path,cycle.num)
+            fig.savefig(f_name)
+            pl.close(fig)
+
+        pp.average_cycles(self,file_dep[0],target[1])
+        fig = pp.plot_lower_limb_kinematics_mod(self,target[1], side = self.side)
+        fig.savefig(target[0])
+        pl.close(fig)
+
     def joint_angle_plots(self, file_dep, target):
         # if os.path.exists(self.fig_fpath):
         #     os.rename(self.fig_fpath,
         #             self.fig_fpath.replace('.pdf', '_backup.pdf'))
-        fig = pp.plot_lower_limb_kinematics(file_dep[0], self.gl, 
+        fig = pp.plot_lower_limb_kinematics(file_dep[0], self.gl,
             side=self.side)
         fig.savefig(target[0])
         pl.close(fig)
@@ -573,10 +593,10 @@ class TaskIKPost(task.PostTask):
         # if os.path.exists(self.errorplot_fpath):
         #     os.rename(self.errorplot_fpath,
         #             self.errorplot_fpath.replace('.pdf', '_backup.pdf'))
-        pp.plot_marker_error(target[0], self.error_markers, 
+        pp.plot_marker_error(target[0], self.error_markers,
             10, self.gl, file_dep[0], file_dep[1], file_dep[2])
 
-    
+
 class TaskIDSetup(task.SetupTask):
     REGISTRY = []
     def __init__(self, trial, ik_setup_task, **kwargs):
@@ -589,7 +609,7 @@ class TaskIDSetup(task.SetupTask):
             self.path, 'results','%s_%s_id_solution.sto' % (
             self.study.name, trial.id))
 
-        # Fill out external_loads.xml template and copy over to results 
+        # Fill out external_loads.xml template and copy over to results
         # directory
         self.create_external_loads_action(self.rel_kinematics_fpath)
 
@@ -602,13 +622,13 @@ class TaskIDSetup(task.SetupTask):
             content = ft.read()
             content = content.replace('@STUDYNAME@', self.study.name)
             content = content.replace('@NAME@', self.tricycle.id)
-            content = content.replace('@MODEL@', 
+            content = content.replace('@MODEL@',
                 os.path.relpath(self.subject.scaled_model_fpath, self.path))
             content = content.replace('@COORDINATES_FILE@',
                 self.rel_kinematics_fpath)
             content = content.replace('@INIT_TIME@', '%.4f' % init_time)
             content = content.replace('@FINAL_TIME@', '%.4f' % final_time)
-        
+
         with open(target[0], 'w') as f:
             f.write(content)
 
@@ -651,9 +671,9 @@ class TaskIDPost(task.PostTask):
             fname = 'joint_torques_cycle%02d.pdf' % cycle.num
             output_filepath = os.path.join(self.path, fname)
 
-            pp.plot_gait_torques(output_filepath, id_array, 
+            pp.plot_gait_torques(output_filepath, id_array,
                 self.trial.primary_leg, cycle.start, cycle.end,
-                cycle.gl.right_strike, cycle.gl.left_strike, 
+                cycle.gl.right_strike, cycle.gl.left_strike,
                 toeoff_time=cycle.gl.right_toeoff)
 
 class TaskSOSetup(task.SetupTask):
@@ -669,7 +689,7 @@ class TaskSOSetup(task.SetupTask):
             self.path, 'results','%s_%s_so_StaticOptimization_activation.sto' % (
             self.study.name, self.tricycle.id))
 
-        # Fill out external_loads.xml template and copy over to results 
+        # Fill out external_loads.xml template and copy over to results
         # directory
         self.create_external_loads_action(self.rel_kinematics_fpath)
 
@@ -682,7 +702,7 @@ class TaskSOSetup(task.SetupTask):
             content = ft.read()
             content = content.replace('@STUDYNAME@', self.study.name)
             content = content.replace('@NAME@', self.tricycle.id)
-            content = content.replace('@MODEL@', 
+            content = content.replace('@MODEL@',
                 os.path.relpath(self.subject.scaled_model_fpath, self.path))
             content = content.replace('@COORDINATES_FILE@',
                 self.rel_kinematics_fpath)
@@ -692,7 +712,7 @@ class TaskSOSetup(task.SetupTask):
                     os.path.relpath(
                         os.path.join(self.study.config['results_path'],
                             'experiments',
-                            self.subject.rel_path, 
+                            self.subject.rel_path,
                             '%s_residual_actuators.xml' % self.subject.name),
                         self.path),
                     os.path.relpath(
@@ -700,7 +720,7 @@ class TaskSOSetup(task.SetupTask):
                     ]
             force_set_str = ' '.join(force_set_files)
             content = content.replace('@FORCE_SET_FILES@', force_set_str)
-        
+
         with open(target[0], 'w') as f:
             f.write(content)
 
@@ -791,7 +811,7 @@ class TaskRRAModelSetup(task.SetupTask):
         self.doc = "Create a setup file for the Residual Reduction Algorithm, to create an adjusted model."
         self.adjust_body = adjust_body
 
-        # Fill out external_loads.xml template and copy over to results 
+        # Fill out external_loads.xml template and copy over to results
         # directory
         self.create_external_loads_action()
 
@@ -807,13 +827,13 @@ class TaskRRAModelSetup(task.SetupTask):
             content = ft.read()
             content = content.replace('@STUDYNAME@', self.study.name)
             content = content.replace('@NAME@', self.tricycle.id)
-            content = content.replace('@MODEL@', 
+            content = content.replace('@MODEL@',
                 os.path.relpath(self.trial.model_to_adjust_fpath, self.path))
             content = content.replace('@INIT_TIME@', '%.4f' % init_time)
             content = content.replace('@FINAL_TIME@', '%.4f' % final_time)
             force_set_files = '%s %s' % (
-                os.path.relpath(self.study.rra_actuators_fpath, self.path), 
-                os.path.relpath(self.subject.residual_actuators_fpath, 
+                os.path.relpath(self.study.rra_actuators_fpath, self.path),
+                os.path.relpath(self.subject.residual_actuators_fpath,
                     self.path))
             content = content.replace('@FORCESETFILES@', force_set_files)
             content = content.replace('@ADJUSTCOMBODY@', self.adjust_body)
@@ -821,7 +841,7 @@ class TaskRRAModelSetup(task.SetupTask):
             # the resulting model.
             content = content.replace('@MODELADJUSTED@',
                    self.adjusted_model)
-        
+
         with open(target[0], 'w') as f:
             f.write(content)
 
@@ -831,7 +851,7 @@ class TaskRRAKinSetup(task.SetupTask):
         super(TaskRRAKinSetup, self).__init__('rrakin', trial, **kwargs)
         self.doc = "Create a setup file for the Residual Reduction Algorithm tool to adjust kinematics."
 
-        # Fill out external_loads.xml template and copy over to results 
+        # Fill out external_loads.xml template and copy over to results
         # directory
         self.create_external_loads_action()
 
@@ -847,13 +867,13 @@ class TaskRRAKinSetup(task.SetupTask):
             content = ft.read()
             content = content.replace('@STUDYNAME@', self.study.name)
             content = content.replace('@NAME@', self.tricycle.id)
-            content = content.replace('@MODEL@', 
+            content = content.replace('@MODEL@',
                 os.join.relpath(self.adjusted_model_fpath, self.path))
             content = content.replace('@INIT_TIME@', '%.4f' % init_time)
             content = content.replace('@FINAL_TIME@', '%.4f' % final_time)
             force_set_files = '%s %s' % (
-                os.path.relpath(self.study.rra_actuators_fpath, self.path), 
-                os.path.relpath(self.subject.residual_actuators_fpath, 
+                os.path.relpath(self.study.rra_actuators_fpath, self.path),
+                os.path.relpath(self.subject.residual_actuators_fpath,
                     self.path))
             content = content.replace('@FORCESETFILES@', force_set_files)
 
@@ -891,9 +911,9 @@ class TaskRRA(task.ToolTask):
 
 class TaskRRAModel(TaskRRA):
     REGISTRY = []
-    def __init__(self, trial, rramodel_setup_task, reenable_probes=False, 
+    def __init__(self, trial, rramodel_setup_task, reenable_probes=False,
             **kwargs):
-        super(TaskRRAModel, self).__init__(rramodel_setup_task, trial, 
+        super(TaskRRAModel, self).__init__(rramodel_setup_task, trial,
             **kwargs)
         self.doc = "Run OpenSim's RRA tool to create an adjusted model."
 
@@ -902,7 +922,7 @@ class TaskRRAModel(TaskRRA):
             trial.model_to_adjust_fpath,
             rramodel_setup_task.results_setup_fpath,
             rramodel_setup_task.results_tasks_fpath,
-            rramodel_setup_task.results_extloads_fpath, 
+            rramodel_setup_task.results_extloads_fpath,
             ]
 
         self.targets += [rramodel_setup_task.adjusted_model_fpath]
@@ -938,7 +958,7 @@ class TaskRRAKin(TaskRRA):
     def __init__(self, trial, rrakin_setup_task, **kwargs):
         super(TaskRRAKin, self).__init__(rrakin_setup_task, trial, **kwargs)
         self.doc = "Run OpenSim's RRA tool to adjust model kinematics"
-            
+
         # Set file dependencies
         self.file_dep += [
                 rrakin_setup_task.adjusted_model_fpath,
@@ -949,7 +969,7 @@ class TaskRRAKin(TaskRRA):
 
 class TaskCMCSetup(task.SetupTask):
     REGISTRY = []
-    def __init__(self, trial, des_kinematics='rrakin', 
+    def __init__(self, trial, des_kinematics='rrakin',
                  control_constraints=None, **kwargs):
         super(TaskCMCSetup, self).__init__('cmc', trial, **kwargs)
         self.doc = "Create a setup file for Computed Muscle Control."
@@ -958,18 +978,18 @@ class TaskCMCSetup(task.SetupTask):
 
         # Set desired kinematics path
         if self.des_kinematics=='rrakin':
-            self.des_kinematics_fpath = os.path.join(trial.results_exp_path, 
+            self.des_kinematics_fpath = os.path.join(trial.results_exp_path,
                 'rrakin', 'results',
-                '%s_%s_rrakin_Kinematics_q.sto' % (self.study.name, 
+                '%s_%s_rrakin_Kinematics_q.sto' % (self.study.name,
                     self.tricycle.id))
         elif self.des_kinematics=='ik':
             self.des_kinematics_fpath = os.path.join(trial.results_exp_path,
-                'ik', '%s_%s_ik_solution.mot' % (self.study.name, 
+                'ik', '%s_%s_ik_solution.mot' % (self.study.name,
                     self.tricycle.id))
         else:
             raise Exception("TaskCMCSetup: %s is not a valid kinematics task "
                 "source, please choose 'rrakin' or 'ik'." % des_kinematics)
-        
+
         # Set control constraints path (if any)
         if self.control_constraints:
             raise Exception("TaskCMCSetup: control constraints have yet to be "
@@ -980,7 +1000,7 @@ class TaskCMCSetup(task.SetupTask):
         # TODO
         # self.coord_act_fpath
 
-        # Fill out external_loads.xml template and copy over to results 
+        # Fill out external_loads.xml template and copy over to results
         # directory
         self.create_external_loads_action()
 
@@ -991,38 +1011,38 @@ class TaskCMCSetup(task.SetupTask):
         self.create_setup_action()
 
     # Override derived action method since different desired kinematics
-    # may be specified 
+    # may be specified
     def fill_external_loads_template(self, file_dep, target):
         with open(file_dep[0]) as ft:
             content = ft.read()
             content = content.replace('@STUDYNAME@', self.study.name)
             content = content.replace('@NAME@', self.tricycle.id)
-            content = content.replace('@DESKINEMATICS@', 
+            content = content.replace('@DESKINEMATICS@',
                 os.join.relpath(self.des_kinematics_fpath, self.path))
 
         with open(target[0], 'w') as f:
             f.write(content)
 
-    def fill_setup_template(self, file_dep, target, 
+    def fill_setup_template(self, file_dep, target,
                             init_time=None, final_time=None):
         with open(file_dep[0]) as ft:
             content = ft.read()
             content = content.replace('@STUDYNAME@', self.study.name)
             content = content.replace('@NAME@', self.tricycle.id)
-            content = content.replace('@MODEL@', 
+            content = content.replace('@MODEL@',
                 os.path.relpath(self.adjusted_model_fpath, self.path))
             content = content.replace('@INIT_TIME@', '%.4f' % init_time)
             content = content.replace('@FINAL_TIME@', '%.4f' % final_time)
             force_set_files = '%s %s' % (
-                os.path.relpath(self.study.cmc_actuators_fpath, self.path), 
-                os.path.relpath(self.subject.residual_actuators_fpath, 
+                os.path.relpath(self.study.cmc_actuators_fpath, self.path),
+                os.path.relpath(self.subject.residual_actuators_fpath,
                     self.path))
             content = content.replace('@FORCESETFILES@', force_set_files)
             content = content.replace('@DESKINEMATICS@',
                 os.path.relpath(self.des_kinematics_fpath, self.path))
-            content = content.replace('@CONTROLCONSTRAINTS@', 
+            content = content.replace('@CONTROLCONSTRAINTS@',
                 os.path.relpath(self.control_constraints_fpath, self.path))
-        
+
         with open(target[0], 'w') as f:
             f.write(content)
 

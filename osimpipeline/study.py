@@ -4,7 +4,7 @@ import yaml
 from numpy import loadtxt
 
 import vital_tasks
-import utilities 
+import utilities
 
 class Cycle(object):
     """A subject may walk for multiple gait cycles in a given trial,
@@ -26,9 +26,9 @@ class Cycle(object):
 
     def add_task(self, cls, *args, **kwargs):
         """Add a TrialTask for this cycle.
-            
+
            TrialTasks for cycles can only be created
-           by Trial objects. 
+           by Trial objects.
         """
         if 'cycle' not in kwargs:
             kwargs['cycle'] = self
@@ -92,7 +92,7 @@ class Trial(object):
         self.subject = condition.subject
         self.study = self.subject.study
         self.num = num
-        self.name = 'trial%02i' % num 
+        self.name = 'trial%02i' % num
         self.metadata = metadata
         self.cycles = list()
         self.rel_path = (condition.rel_path if omit_trial_dir else
@@ -126,10 +126,10 @@ class Trial(object):
                 self.expdata_path, 'marker_trajectories.trc')
         self.ground_reaction_fpath = os.path.join(
                 self.expdata_path, 'ground_reaction.mot')
-        # Model used by RRA to create adjusted model. By default, this is set 
-        # to the scaled model, but it can be set to a different model if the 
+        # Model used by RRA to create adjusted model. By default, this is set
+        # to the scaled model, but it can be set to a different model if the
         # scaled model must be modifed (adding a backpack, etc.)
-        self.model_to_adjust_fpath = (self.subject.scaled_model_fpath if 
+        self.model_to_adjust_fpath = (self.subject.scaled_model_fpath if
             not model_to_adjust_fpath else model_to_adjust_fpath)
         self.tasks = list()
 
@@ -156,12 +156,12 @@ class Trial(object):
             if not self.right_strikes and not self.left_strikes:
                 self.heel_strikes = [self.start_time, self.end_time]
 
-            elif ((self.right_strikes and not self.left_strikes) or 
+            elif ((self.right_strikes and not self.left_strikes) or
                  (len(self.right_strikes) == len(self.left_strikes)+1)):
                 self.heel_strikes = self.right_strikes
                 self.primary_leg = 'right'
 
-            elif ((self.left_strikes and not self.right_strikes) or 
+            elif ((self.left_strikes and not self.right_strikes) or
                  (len(self.left_strikes) == len(self.right_strikes)+1)):
                 self.heel_strikes = self.left_strikes
                 self.primary_leg='left'
@@ -184,7 +184,7 @@ class Trial(object):
         # cycle objects. This also supports cases where the notion of a cycle
         # may not exist (e.g. overground trials where only start and end times
         # given).
-        for icycle in range(len(self.heel_strikes) - 1):
+        for icycle in range(len(self.heel_strikes) - 1 + (self.stride_times!=None)):
             start = self.heel_strikes[icycle]
             if self.stride_times:
                 end = start + self.stride_times[icycle]
@@ -206,6 +206,7 @@ class Trial(object):
                 gait_landmarks.right_toeoff = self.right_toeoffs[icycle]
 
             self._add_cycle(icycle+1, gait_landmarks)
+
 
     def get_mocap_start_time(self):
         mocap_data = loadtxt(self.marker_trajectories_fpath, skiprows=6)
@@ -253,11 +254,11 @@ class Trial(object):
 
             # Put setup task at front of argument list
             if setup_tasks:
-                args = (setup_tasks[i],) + orig_args 
+                args = (setup_tasks[i],) + orig_args
 
             task = cycle.add_task(cls, *args, **kwargs)
 
-            if (("Inverse Kinematics" in task.doc) or 
+            if (("Inverse Kinematics" in task.doc) or
                 ("Inverse Dynamics" in task.doc)):
                 raise Exception("TrialTask creation for individual cycles not "
                     " currently supported for the Inverse Kinematics and "
@@ -307,7 +308,7 @@ class Condition(object):
         assert not self.contains_trial(trial.num)
         self.trials.append(trial)
         return trial
-       
+
     def get_trial(self, num):
         for t in self.trials:
             if t.num == num:
@@ -315,7 +316,7 @@ class Condition(object):
         return None
     def contains_trial(self, num):
         return (self.get_trial(num) != None)
-        
+
 class Subject(object):
     def __init__(self, study, num, mass, metadata=None):
         self.study = study
@@ -328,9 +329,9 @@ class Subject(object):
         self.rel_path = self.name
         self.results_exp_path = os.path.join(self.study.config['results_path'],
             'experiments', self.rel_path)
-        self.scaled_model_fpath = os.path.join(self.results_exp_path, 
+        self.scaled_model_fpath = os.path.join(self.results_exp_path,
             '%s.osim' % self.name)
-        self.residual_actuators_fpath = os.path.join(self.results_exp_path, 
+        self.residual_actuators_fpath = os.path.join(self.results_exp_path,
             '%s_residual_actuators.xml' % self.name)
         self.conditions = list()
         self.tasks = list()
@@ -357,12 +358,12 @@ class Subject(object):
 
 class Study(object):
     """
-    
+
     Configuration file
     ------------------
     We expect that the current directory contains a `config.yaml` file with
     the following fields:
-    
+
       - motion_capture_data_path
       - results_path
 
@@ -391,7 +392,7 @@ class Study(object):
         except Exception as e:
             raise Exception(e.message +
                     "\nMake sure there is a config.yaml next to dodo.py")
-            
+
         if not 'results_path' in self.config:
             self.config['results_path'] = '../results'
         if not 'analysis_path' in self.config:
@@ -408,7 +409,7 @@ class Study(object):
         self.cmc_actuators_fpath = os.path.join(self.config['results_path'],
                 'cmc_actuators.xml')
 
-        self.subjects = list() 
+        self.subjects = list()
         self.tasks = list()
 
         #self.add_task(vital_tasks.TaskCopyGenericModelToResults)
