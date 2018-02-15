@@ -1,4 +1,5 @@
 import os
+import time
 import numpy as np
 import shutil
 
@@ -6,10 +7,15 @@ import task
 import utilities as util
 import postprocessing as pp
 
+
 class TaskMRSDeGrooteSetup(task.SetupTask):
     REGISTRY = []
-    def __init__(self, trial, **kwargs):
-        super(TaskMRSDeGrooteSetup, self).__init__('mrs', trial, **kwargs)
+    def __init__(self, trial, cost='Default', **kwargs):
+        super(TaskMRSDeGrooteSetup, self).__init__('mrs', trial, 
+            pathext=cost, **kwargs)
+        self.cost = cost
+        if not (self.cost == 'Default'):
+            self.name += '_%s' % self.cost
         self.doc = "Create a setup file for the DeGroote Muscle Redundancy Solver tool."
         self.kinematics_file = os.path.join(self.trial.results_exp_path, 'ik',
                 '%s_%s_ik_solution.mot' % (self.study.name, self.trial.id))
@@ -24,7 +30,7 @@ class TaskMRSDeGrooteSetup(task.SetupTask):
         self.results_post_fpath = os.path.join(self.path, 'postprocess.m')
         self.results_output_fpath = os.path.join(self.path, '%s_%s_mrs.mat' % (
             self.study.name, self.tricycle.id)) 
-
+        
         self.file_dep += [
             self.kinematics_file,
             self.kinetics_file
@@ -71,6 +77,7 @@ class TaskMRSDeGrooteSetup(task.SetupTask):
                     self.rel_kinetics_file)
             content = content.replace('@SIDE@',
                     self.trial.primary_leg[0])
+            content = content.replace('@COST@', self.cost)
 
         with open(target[0], 'w') as f:
             f.write(content)
@@ -96,6 +103,9 @@ class TaskMRSDeGroote(task.ToolTask):
         self.doc = 'Run DeGroote Muscle Redundancy Solver in MATLAB.'
         self.results_setup_fpath  = mrs_setup_task.results_setup_fpath
         self.results_output_fpath = mrs_setup_task.results_output_fpath
+
+        if not (mrs_setup_task.cost == 'Default'):
+            self.name += '_%s' % mrs_setup_task.cost
 
         self.file_dep += [
                 self.results_setup_fpath,
@@ -125,7 +135,8 @@ class TaskMRSDeGroote(task.ToolTask):
                         self.results_setup_fpath)
                     )
             if status != 0:
-                raise Exception('Non-zero exit status.')
+                print 'Non-zero exist status. Continuing....'
+                # raise Exception('Non-zero exit status.')
 
             # Wait until output mat file exists to finish the action
             while True:
@@ -148,6 +159,9 @@ class TaskMRSDeGrootePost(task.PostTask):
         self.doc = 'Postprocess DeGroote Muscle Redundancy Solver in MATLAB.'
         self.id = mrs_setup_task.tricycle.id
         self.results_output_fpath = mrs_setup_task.results_output_fpath
+
+        if not (mrs_setup_task.cost == 'Default'):
+            self.name += '_%s' % mrs_setup_task.cost
 
         # Plot muscle excitations, activations, and reserve activations
         self.add_action([self.results_output_fpath],
@@ -236,10 +250,15 @@ class TaskMRSDeGrooteMod(task.ToolTask):
         """
         self.mod_name = mod_name
         self.tool = 'mrsmod_%s' % self.mod_name
-        mrs_setup_task.tool = self.tool
+        mrs_setup_task.tool = self.tool 
 
         super(TaskMRSDeGrooteMod, self).__init__(mrs_setup_task, trial,
             opensim=False, **kwargs)
+        self.cost = mrs_setup_task.cost
+        self.costdir = ''
+        if not (self.cost == 'Default'):
+            self.name += "_%s" % self.cost
+            self.costdir = self.cost
         self.mrs_setup_task = mrs_setup_task
         self.description = description
         self.mrsflags = mrsflags
@@ -248,7 +267,8 @@ class TaskMRSDeGrooteMod(task.ToolTask):
         self.tricycle = mrs_setup_task.tricycle
         self.path = os.path.join(self.study.config['results_path'],
             'mrsmod_%s' % self.mod_name, trial.rel_path, 'mrs',
-            mrs_setup_task.cycle.name if mrs_setup_task.cycle else '')
+            mrs_setup_task.cycle.name if mrs_setup_task.cycle else '', 
+            self.costdir)
         self.setup_template_fpath = 'templates/mrs/setup.m'
         self.setup_fpath = os.path.join(self.path, 'setup.m')
         self.kinematics_fpath = mrs_setup_task.kinematics_file
@@ -256,13 +276,14 @@ class TaskMRSDeGrooteMod(task.ToolTask):
         self.results_output_fpath = os.path.join(self.path,
                     '%s_%s_mrs.mat' % 
                     (self.study.name, mrs_setup_task.tricycle.id))
+        self.cost = mrs_setup_task.cost
 
-        self.file_dep += [
-                self.setup_template_fpath,
-                self.subject.scaled_model_fpath,
-                self.kinematics_fpath,
-                self.kinetics_fpath,
-                ]
+        # self.file_dep += [
+        #         self.setup_template_fpath,
+        #         self.subject.scaled_model_fpath,
+        #         self.kinematics_fpath,
+        #         self.kinetics_fpath,
+        #         ]
 
         self.actions += [
                 self.make_path,
@@ -281,10 +302,10 @@ class TaskMRSDeGrooteMod(task.ToolTask):
                 self.delete_muscle_analysis_results,
                 ]
 
-        self.targets += [
-                self.setup_fpath,
-                self.results_output_fpath,
-                ]
+        # self.targets += [
+        #         self.setup_fpath,
+        #         self.results_output_fpath,
+        #         ]
 
     def make_path(self):
         if not os.path.exists(self.path): os.makedirs(self.path)
@@ -331,6 +352,7 @@ class TaskMRSDeGrooteMod(task.ToolTask):
                     os.path.relpath(self.kinetics_fpath, self.path))
             content = content.replace('@SIDE@',
                     self.trial.primary_leg[0])
+            content = content.replace('@COST@', self.cost)
 
         with open(self.setup_fpath, 'w') as f:
             f.write(content)
@@ -347,7 +369,8 @@ class TaskMRSDeGrooteMod(task.ToolTask):
                 )
 
             if status != 0:
-                raise Exception('Non-zero exit status.')
+                print 'Non-zero exist status. Continuing....'
+                # raise Exception('Non-zero exit status.')
 
              # Wait until output mat file exists to finish the action
             while True:
@@ -373,6 +396,9 @@ class TaskMRSDeGrooteModPost(task.PostTask):
         self.path = self.mrsmod_task.path
         self.id = self.mrs_setup_task.tricycle.id
         self.results_output_fpath = mrsmod_task.results_output_fpath
+
+        if not (self.mrs_setup_task.cost == 'Default'):
+            self.name += '_%s' % self.mrs_setup_task.cost
 
         # Plot muscle excitations, activations, and reserve activations
         self.add_action([self.results_output_fpath],
