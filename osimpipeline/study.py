@@ -126,15 +126,9 @@ class Trial(object):
                 self.expdata_path, 'marker_trajectories.trc').replace('////', 
                     '//')
         self.ground_reaction_fpath = os.path.join(
-<<<<<<< HEAD
-                self.expdata_path, 'ground_reaction.mot')
-        # Model used by RRA to create adjusted model. By default, this is set
-        # to the scaled model, but it can be set to a different model if the
-=======
                 self.expdata_path, 'ground_reaction.mot').replace('\\\\', '\\')
         # Model used by RRA to create adjusted model. By default, this is set 
         # to the scaled model, but it can be set to a different model if the 
->>>>>>> exotopology_temp
         # scaled model must be modifed (adding a backpack, etc.)
         self.model_to_adjust_fpath = (self.subject.scaled_model_fpath if
             not model_to_adjust_fpath else model_to_adjust_fpath)
