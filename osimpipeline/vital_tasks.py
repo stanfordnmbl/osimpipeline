@@ -546,7 +546,7 @@ class TaskIKPost(task.PostTask):
         self.doc = 'Create plots from the results of Inverse Kinematics.'
         self.joint_angles_plotpath = '%s/joint_angles.pdf' % self.path
         self.avg_joint_angles_plotpath = '%s/avg_joint_angles.pdf' % self.path
-        self.avg_joint_angles_filepath = '%s/avg_joint_angles.txt' % self.path
+        self.avg_joint_angles_filepath = '%s/avg_joint_angles.csv' % self.path
         self.marker_errors_plotpath = '%s/marker_error.pdf' % self.path
         self.error_markers = error_markers
         self.side = side
@@ -656,6 +656,9 @@ class TaskIDPost(task.PostTask):
         self.trial = trial
         self.ik_setup_task = id_setup_task.ik_setup_task
         self.id_solution_fpath = id_setup_task.solution_fpath
+        self.plot_primary_leg_only = False
+        if kwargs['plot_primary_leg_only']:
+            self.plot_primary_leg_only = kwargs['plot_primary_leg_only']
         self.file_dep += [
                 self.id_solution_fpath
             ]
@@ -674,7 +677,8 @@ class TaskIDPost(task.PostTask):
             pp.plot_gait_torques(output_filepath, id_array,
                 self.trial.primary_leg, cycle.start, cycle.end,
                 cycle.gl.right_strike, cycle.gl.left_strike,
-                toeoff_time=cycle.gl.right_toeoff)
+                toeoff_time=cycle.gl.right_toeoff,
+                plot_primary_leg_only=self.plot_primary_leg_only)
 
 class TaskSOSetup(task.SetupTask):
     REGISTRY = []

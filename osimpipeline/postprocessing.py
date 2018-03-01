@@ -857,7 +857,7 @@ def plot_force_plate_data(mot_file):
 
 def plot_gait_torques(output_filepath, actu, primary_leg, cycle_start,
         cycle_end, primary_footstrike, opposite_footstrike,
-        toeoff_time=None):
+        toeoff_time=None, plot_primary_leg_only=False):
     """Plots hip, knee, and ankle torques, as a function of percent
     gait cycle, for one gait cycle. Gait cycle starts with a footstrike (start
     of stance). Torques are plotted for both legs; the data for the
@@ -894,6 +894,9 @@ def plot_gait_torques(output_filepath, actu, primary_leg, cycle_start,
     toeoff_time : bool, optional
         Draw a vertical line on the plot to indicate when the primary foot
         toe-off occurs by providing the time at which this occurs.
+    plot_primary_leg_only : bool, optional
+        Only plot torque data for the primary leg. This may be convenient when
+        performing inverse dynamics for a single leg.
 
     """
     # TODO compare to experimental data.
@@ -930,10 +933,11 @@ def plot_gait_torques(output_filepath, actu, primary_leg, cycle_start,
         ax = pl.subplot(3, 1, index)
         if negate:
             plot_primary_leg(name, mult=-1.0)
-            plot_opposite_leg(name, mult=-1.0)
+            if not plot_primary_leg_only: plot_opposite_leg(name, mult=-1.0)
         else:
             plot_primary_leg(name)
-            plot_opposite_leg(name)
+            if not plot_primary_leg_only: plot_opposite_leg(name)
+                
         # TODO this next line isn't so great of an idea:
         if label == None:
             label = name.replace('_', ' ')
@@ -963,6 +967,7 @@ def plot_gait_torques(output_filepath, actu, primary_leg, cycle_start,
     plot_coordinate(1, 'hip_flexion', label='hip flexion moment')
     plot_coordinate(2, 'knee_angle', negate=True, label='knee flexion moment')
     plot_coordinate(3, 'ankle_angle', label='ankle dorsiflexion moment')
+
     pl.xlabel('percent gait cycle')
 
     pl.tight_layout()

@@ -40,10 +40,10 @@ class TaskMRSDeGrooteSetup(task.SetupTask):
         self.create_setup_action()
 
         # Fill out postprocess.m template and write to results directory
-        self.add_action(
-                ['templates/mrs/postprocess.m'],
-                [self.results_post_fpath],
-                self.fill_postprocess_template)
+        # self.add_action(
+        #         ['templates/mrs/postprocess.m'],
+        #         [self.results_post_fpath],
+        #         self.fill_postprocess_template)
 
     def create_setup_action(self): 
         self.add_action(
@@ -107,21 +107,21 @@ class TaskMRSDeGroote(task.ToolTask):
         if not (mrs_setup_task.cost == 'Default'):
             self.name += '_%s' % mrs_setup_task.cost
 
-        self.file_dep += [
-                self.results_setup_fpath,
-                self.subject.scaled_model_fpath,
-                mrs_setup_task.kinematics_file,
-                mrs_setup_task.kinetics_file,
-                ]
+        # self.file_dep += [
+        #         self.results_setup_fpath,
+        #         self.subject.scaled_model_fpath,
+        #         mrs_setup_task.kinematics_file,
+        #         mrs_setup_task.kinetics_file,
+        #         ]
 
         self.actions += [
                 self.run_muscle_redundancy_solver,
                 self.delete_muscle_analysis_results,
                 ]
 
-        self.targets += [
-                self.results_output_fpath,
-                ]
+        # self.targets += [
+        #         self.results_output_fpath,
+        #         ]
 
     def run_muscle_redundancy_solver(self):
         with util.working_directory(self.path):
@@ -235,6 +235,7 @@ class TaskMRSDeGrootePost(task.PostTask):
             mass=self.subject.mass)
 
 class TaskMRSDeGrooteMod(task.ToolTask):
+    REGISTRY = []
     def __init__(self, trial, mrs_setup_task, mod_name, description,
         mrsflags, **kwargs):
         """
@@ -278,12 +279,12 @@ class TaskMRSDeGrooteMod(task.ToolTask):
                     (self.study.name, mrs_setup_task.tricycle.id))
         self.cost = mrs_setup_task.cost
 
-        # self.file_dep += [
-        #         self.setup_template_fpath,
-        #         self.subject.scaled_model_fpath,
-        #         self.kinematics_fpath,
-        #         self.kinetics_fpath,
-        #         ]
+        self.file_dep += [
+                self.setup_template_fpath,
+                self.subject.scaled_model_fpath,
+                self.kinematics_fpath,
+                self.kinetics_fpath,
+                ]
 
         self.actions += [
                 self.make_path,
@@ -302,10 +303,10 @@ class TaskMRSDeGrooteMod(task.ToolTask):
                 self.delete_muscle_analysis_results,
                 ]
 
-        # self.targets += [
-        #         self.setup_fpath,
-        #         self.results_output_fpath,
-        #         ]
+        self.targets += [
+                self.setup_fpath,
+                self.results_output_fpath,
+                ]
 
     def make_path(self):
         if not os.path.exists(self.path): os.makedirs(self.path)
@@ -318,12 +319,15 @@ class TaskMRSDeGrooteMod(task.ToolTask):
             if type(self.mrsflags) is list:
                 list_of_flags = self.mrsflags 
             else:
-             list_of_flags = self.mrsflags(self.cycle)
+                list_of_flags = self.mrsflags(self.cycle)
 
             # Insert flags for the mod.
             flagstr = ''
             for flag in list_of_flags:
                 flagstr += 'Misc.%s;\n' % flag
+
+            if 'cycle' in self.tricycle.name:
+                flagstr += 'Misc.cycle=%s;\n' % self.tricycle.num
 
             content = content.replace('Misc = struct();',
                     'Misc = struct();\n' +
@@ -369,8 +373,8 @@ class TaskMRSDeGrooteMod(task.ToolTask):
                 )
 
             if status != 0:
-                print 'Non-zero exist status. Continuing....'
-                # raise Exception('Non-zero exit status.')
+                # print 'Non-zero exist status. Continuing....'
+                raise Exception('Non-zero exit status.')
 
              # Wait until output mat file exists to finish the action
             while True:

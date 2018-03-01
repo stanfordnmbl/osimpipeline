@@ -5,6 +5,7 @@ from numpy import loadtxt
 
 import vital_tasks
 import utilities
+import mrs_tasks
 
 class Cycle(object):
     """A subject may walk for multiple gait cycles in a given trial,
