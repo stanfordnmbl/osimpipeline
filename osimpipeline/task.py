@@ -48,10 +48,10 @@ class Task(object):
         The arguments `file_dep` and `target` should be lists or dicts.
 
         """
-        # if type(file_dep) == list:
-        #     self.file_dep += file_dep
-        # else:
-        #     self.file_dep += file_dep.values()
+        if type(file_dep) == list:
+            self.file_dep += file_dep
+        else:
+            self.file_dep += file_dep.values()
         if type(target) == list:
             self.targets += target
         else:
