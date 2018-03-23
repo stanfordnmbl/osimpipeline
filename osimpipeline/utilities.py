@@ -8,6 +8,22 @@ import pylab as pl
 import warnings
 import h5py
 
+import platform
+
+def running_in_jython():
+    return platform.system() == 'Java'
+
+if running_in_jython():
+    import org.opensim.modeling as osm
+else:
+    import opensim as osm
+
+def printobj(obj, fname):
+    if running_in_jython():
+        exec('obj.print(fname)')
+    else:
+        obj.printToXML(fname)
+
 class working_directory():
     """Use this to temporarily run code with some directory as a working
     directory and to then return to the original working directory::
@@ -110,6 +126,48 @@ def enable_probes(model_fpath):
     for i_probe in range(n_probes):
         model.updProbeSet().get(i_probe).setDisabled(False)
     printobj(model, model_fpath)
+
+def get_sum_total_muscle_volume(model_fpath, specific_tension):
+    """Returns the sum total of all the masses of the model muscles.
+    Parameters
+    ----------
+    model_fpath : str
+        Path to model (.OSIM) file for the model to get muscle volumes.
+    specific_tension : float
+        Estimate of the specific tension of all model muscles.
+
+    """
+    m = osm.Model(model_fpath)
+    Vtotal = 0.0
+    for i_m in range(m.getMuscles().getSize()):
+        musc = m.getMuscles().get(i_m)
+        Fmax = musc.getMaxIsometricForce() # N
+        Lopt = musc.getOptimalFiberLength() # m
+
+        PCSA = Fmax / specific_tension
+        Vm = Lopt * PCSA
+
+        Vtotal += Vm
+
+    return Vtotal
+
+
+def strengthen_muscles(model_fpath, new_model_fpath, scale_factor):
+    """Scales all muscles' maximum isometric force by `scale_factor`.
+    Parameters
+    ----------
+    model_fpath : str
+        Path to model (.OSIM) file for the model to strengthen.
+    new_model_fpath : str
+        Path to which to save the strengthened model.
+    scale_factor : float
+        All muscle optimal forces are scaled by this number.
+    """
+    m = osm.Model(model_fpath)
+    for i_m in range(m.getMuscles().getSize()):
+        m.updMuscles().get(i_m).setMaxIsometricForce(
+                m.getMuscles().get(i_m).getMaxIsometricForce() * scale_factor)
+    printobj(m, new_model_fpath)
 
 
 def gait_landmarks_from_grf(mot_file,
