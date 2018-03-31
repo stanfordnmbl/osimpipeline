@@ -333,6 +333,7 @@ class Subject(object):
         self.residual_actuators_fpath = os.path.join(self.results_exp_path, 
             '%s_residual_actuators.xml' % self.name)
         self.conditions = list()
+        self.cond_args = dict()
         self.tasks = list()
     def add_condition(self, *args, **kwargs):
         """Example: `cond.add_condition('loaded')`"""
