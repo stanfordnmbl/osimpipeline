@@ -10,8 +10,12 @@ import postprocessing as pp
 
 class TaskMRSDeGrooteSetup(task.SetupTask):
     REGISTRY = []
-    def __init__(self, trial, cost='Default', **kwargs):
-        super(TaskMRSDeGrooteSetup, self).__init__('mrs', trial, 
+    def __init__(self, trial, cost='Default', alt_tool_name=None, **kwargs):
+        if alt_tool_name == None:
+            tool = 'mrs'
+        else:
+            tool = alt_tool_name
+        super(TaskMRSDeGrooteSetup, self).__init__(tool, trial, 
             pathext=cost, **kwargs)
         self.cost = cost
         if not (self.cost == 'Default'):
@@ -41,7 +45,7 @@ class TaskMRSDeGrooteSetup(task.SetupTask):
 
         # Fill out postprocess.m template and write to results directory
         self.add_action(
-                ['templates/mrs/postprocess.m'],
+                ['templates/%s/postprocess.m' % self.tool],
                 [self.results_post_fpath],
                 self.fill_postprocess_template)
 
@@ -135,8 +139,8 @@ class TaskMRSDeGroote(task.ToolTask):
                         self.results_setup_fpath)
                     )
             if status != 0:
-                print 'Non-zero exist status. Continuing....'
-                # raise Exception('Non-zero exit status.')
+                # print 'Non-zero exist status. Continuing....'
+                raise Exception('Non-zero exit status.')
 
             # Wait until output mat file exists to finish the action
             while True:
@@ -177,6 +181,13 @@ class TaskMRSDeGrootePost(task.PostTask):
                         (self.study.name, mrs_setup_task.tricycle.id))],
                         self.plot_joint_moment_breakdown
                         )
+
+        # Plot passive and active muscle forces
+        self.add_action([self.results_output_fpath],
+                        [os.path.join(self.path, 'muscle_force.pdf')],
+                        self.plot_muscle_forces
+                        )
+
 
     def plot_activations(self, file_dep, target):
 
@@ -234,6 +245,18 @@ class TaskMRSDeGrootePost(task.PostTask):
             moment_arms, dof_names, muscle_names, target[0], target[1],
             mass=self.subject.mass)
 
+    def plot_muscle_forces(self, file_dep, target):
+
+        muscle_names = util.hdf2list(file_dep[0], 'MuscleNames', type=str)
+        fpe = util.hdf2pandas(file_dep[0], 'MuscleData/fpe', 
+            labels=muscle_names)
+        fce = util.hdf2pandas(file_dep[0], 'MuscleData/fce', 
+            labels=muscle_names)
+
+        # Create plots
+        pp.plot_muscle_forces(target[0], fpe=fpe, fce=fce,
+            normalized=True)
+
 class TaskMRSDeGrooteMod(task.ToolTask):
     def __init__(self, trial, mrs_setup_task, mod_name, description,
         mrsflags, **kwargs):
@@ -278,12 +301,12 @@ class TaskMRSDeGrooteMod(task.ToolTask):
                     (self.study.name, mrs_setup_task.tricycle.id))
         self.cost = mrs_setup_task.cost
 
-        # self.file_dep += [
-        #         self.setup_template_fpath,
-        #         self.subject.scaled_model_fpath,
-        #         self.kinematics_fpath,
-        #         self.kinetics_fpath,
-        #         ]
+        self.file_dep += [
+                self.setup_template_fpath,
+                self.subject.scaled_model_fpath,
+                self.kinematics_fpath,
+                self.kinetics_fpath,
+                ]
 
         self.actions += [
                 self.make_path,
@@ -302,10 +325,10 @@ class TaskMRSDeGrooteMod(task.ToolTask):
                 self.delete_muscle_analysis_results,
                 ]
 
-        # self.targets += [
-        #         self.setup_fpath,
-        #         self.results_output_fpath,
-        #         ]
+        self.targets += [
+                self.setup_fpath,
+                self.results_output_fpath,
+                ]
 
     def make_path(self):
         if not os.path.exists(self.path): os.makedirs(self.path)
@@ -369,8 +392,8 @@ class TaskMRSDeGrooteMod(task.ToolTask):
                 )
 
             if status != 0:
-                print 'Non-zero exist status. Continuing....'
-                # raise Exception('Non-zero exit status.')
+                # print 'Non-zero exist status. Continuing....'
+                raise Exception('Non-zero exit status.')
 
              # Wait until output mat file exists to finish the action
             while True:

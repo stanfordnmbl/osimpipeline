@@ -897,6 +897,56 @@ def plot_reserve_activity(filepath, reserves):
     pl.savefig(filepath)
     pl.close(fig)
 
+def plot_muscle_forces(filepath, fpe=None, fce=None, normalized=False):
+
+    """Plots provided muscle passive and active force and saves to a pdf file.
+
+    Parameters
+    ----------
+    filepath: string
+        Path name of pdf file to print to.
+    fpe: pandas DataFrame
+        DataFrame containing muscle passive force and muscle name information.
+    fce: pandas DataFrame
+        DataFrame containing muscle active force and muscle name information.
+    normalized: bool
+        Flag designating whether or not force information is normalized to max
+        isometric force.
+    """
+
+    if (fpe is None) and (fce is None):
+        raise Exception("Please provide either muscle passive or "
+            "active force information")
+    elif fpe is None:
+        N = len(fce.columns)
+    else: 
+        N = len(fpe.columns)
+
+    # Create plots
+    num_rows = 5
+    num_cols = np.ceil(float(N) / num_rows)
+    fig = pl.figure(figsize=(11, 8.5))
+    for i in range(N):
+        pl.subplot(num_rows, num_cols, i + 1)
+        if not (fpe is None):
+            pl.plot(fpe.index, fpe[fpe.columns[i]], label='passive fiber force')
+        if not (fce is None):
+            pl.plot(fce.index, fce[fce.columns[i]], label='active fiber force')
+        if normalized:
+            pl.ylim(0, 1)
+        if i == 1:
+            pl.legend(frameon=False, fontsize=8)
+        if not (fpe is None):
+            pl.title(fpe.columns[i], fontsize=8)
+        else:
+            pl.title(fce.columns[i], fontsize=8)
+        pl.autoscale(enable=True, axis='x', tight=True)
+        pl.xticks([])
+        pl.yticks([])
+    pl.tight_layout()
+    pl.savefig(filepath)
+    pl.close(fig)
+
 def plot_joint_moment_breakdown(time, joint_moments, tendon_forces, 
     moment_arms, dof_names, muscle_names, pdf_path, csv_path, ext_moments=None,
      ext_names=None, ext_colors=None, mass=None):
