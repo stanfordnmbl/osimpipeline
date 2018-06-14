@@ -272,8 +272,8 @@ class TaskMRSDeGrooteMod(task.ToolTask):
             constant parameters as variables?
         """
         self.mod_name = mod_name
-        self.tool = 'mrsmod_%s' % self.mod_name
-        mrs_setup_task.tool = self.tool 
+        self.tool = self.mod_name
+        mrs_setup_task.tool = self.mod_name
 
         super(TaskMRSDeGrooteMod, self).__init__(mrs_setup_task, trial,
             opensim=False, **kwargs)
@@ -289,7 +289,7 @@ class TaskMRSDeGrooteMod(task.ToolTask):
         self.basemrs_path = mrs_setup_task.path
         self.tricycle = mrs_setup_task.tricycle
         self.path = os.path.join(self.study.config['results_path'],
-            'mrsmod_%s' % self.mod_name, trial.rel_path, 'mrs',
+            self.mod_name, trial.rel_path, 'mrs',
             mrs_setup_task.cycle.name if mrs_setup_task.cycle else '', 
             self.costdir)
         self.setup_template_fpath = 'templates/mrs/setup.m'
@@ -414,7 +414,8 @@ class TaskMRSDeGrooteModPost(task.PostTask):
         super(TaskMRSDeGrooteModPost, self).__init__(mrsmod_task, trial, 
             **kwargs)
         self.mrs_setup_task = mrsmod_task.mrs_setup_task
-        self.doc = 'Postprocess modified DeGroote Muscle Redundancy Solver problem in MATLAB.'
+        self.doc = """ Postprocess modified DeGroote Muscle Redundancy Solver 
+                       problem in MATLAB. """
         self.mrsmod_task = mrsmod_task
         self.path = self.mrsmod_task.path
         self.id = self.mrs_setup_task.tricycle.id
