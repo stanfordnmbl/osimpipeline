@@ -10,7 +10,8 @@ import postprocessing as pp
 
 class TaskMRSDeGrooteSetup(task.SetupTask):
     REGISTRY = []
-    def __init__(self, trial, cost='Default', **kwargs):
+    def __init__(self, trial, cost='Default', use_filtered_id_results=False,
+                **kwargs):
         super(TaskMRSDeGrooteSetup, self).__init__('mrs', trial, 
             pathext=cost, **kwargs)
         self.cost = cost
@@ -21,9 +22,10 @@ class TaskMRSDeGrooteSetup(task.SetupTask):
                 '%s_%s_ik_solution.mot' % (self.study.name, self.trial.id))
         self.rel_kinematics_file = os.path.relpath(self.kinematics_file,
                 self.path)
+        id_suffix = '_filtered' if use_filtered_id_results else ''
         self.kinetics_file = os.path.join(self.trial.results_exp_path,
-                'id', 'results', '%s_%s_id_solution.sto' % (self.study.name,
-                    self.trial.id))
+                'id', 'results', '%s_%s_id_solution%s.sto' % (self.study.name,
+                    self.trial.id, id_suffix))
         self.rel_kinetics_file = os.path.relpath(self.kinetics_file,
                 self.path)
         self.results_setup_fpath = os.path.join(self.path, 'setup.m')
@@ -107,21 +109,21 @@ class TaskMRSDeGroote(task.ToolTask):
         if not (mrs_setup_task.cost == 'Default'):
             self.name += '_%s' % mrs_setup_task.cost
 
-        # self.file_dep += [
-        #         self.results_setup_fpath,
-        #         self.subject.scaled_model_fpath,
-        #         mrs_setup_task.kinematics_file,
-        #         mrs_setup_task.kinetics_file,
-        #         ]
+        self.file_dep += [
+                self.results_setup_fpath,
+                self.subject.scaled_model_fpath,
+                mrs_setup_task.kinematics_file,
+                mrs_setup_task.kinetics_file,
+                ]
 
         self.actions += [
                 self.run_muscle_redundancy_solver,
                 self.delete_muscle_analysis_results,
                 ]
 
-        # self.targets += [
-        #         self.results_output_fpath,
-        #         ]
+        self.targets += [
+                self.results_output_fpath,
+                ]
 
     def run_muscle_redundancy_solver(self):
         with util.working_directory(self.path):
@@ -135,8 +137,8 @@ class TaskMRSDeGroote(task.ToolTask):
                         self.results_setup_fpath)
                     )
             if status != 0:
-                print 'Non-zero exist status. Continuing....'
-                # raise Exception('Non-zero exit status.')
+                # print 'Non-zero exist status. Continuing....'
+                raise Exception('Non-zero exit status.')
 
             # Wait until output mat file exists to finish the action
             while True:

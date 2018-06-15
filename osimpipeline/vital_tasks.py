@@ -650,7 +650,12 @@ class TaskID(task.ToolTask):
 
 class TaskIDPost(task.PostTask):
     REGISTRY = []
-    def __init__(self, trial, id_setup_task, **kwargs):
+    def __init__(self, trial, id_setup_task, butter_polys=False, **kwargs):
+        '''
+            butter_polys: (b, a) or [b, a]
+                where, b = numerator polynomial of Butterworth filter
+                       a = denomenator polynomial of Butterworth filter
+        '''
         super(TaskIDPost, self).__init__(id_setup_task, trial, **kwargs)
         self.doc = 'Create plots from the results of Inverse Dynamics.'
         self.trial = trial
@@ -659,19 +664,71 @@ class TaskIDPost(task.PostTask):
         self.plot_primary_leg_only = False
         if kwargs['plot_primary_leg_only']:
             self.plot_primary_leg_only = kwargs['plot_primary_leg_only']
+
         self.file_dep += [
                 self.id_solution_fpath
             ]
+        self.targets += [
+            '%s_joint_torques_cycle%02d.pdf' % (
+                self.trial.id, cycle.num) for cycle in self.trial.cycles
+            ]
+
+        self.id_filtered_fpath = None
+        if butter_polys:
+            if (self.id_solution_fpath.endswith('.sto') or
+                self.id_solution_fpath.endswith('.mot')):
+                self.id_filtered_fpath = self.id_solution_fpath[:-4]
+                self.id_filtered_fpath += '_filtered.sto'
+            else:
+                Exception('Unrecognized GRF file format.')
+
+            if len(butter_polys) == 2:
+                self.butter_polys = butter_polys
+            else:
+                Exception('Argument "butter_polys" must be a two-element tuple '
+                          'or list containing the numerator and denomenator '
+                          'polynomials of a Butterworth filter: (b, a).')
+            self.targets += [self.id_filtered_fpath]
+            self.actions += [self.filter_net_joint_moments]
+
         self.actions += [
                 self.cycle_joint_torque_plots
             ]
 
-    def cycle_joint_torque_plots(self):
+    def filter_net_joint_moments(self):
 
         id_array = util.storage2numpy(self.id_solution_fpath)
+        data_unfilt = np.array(id_array)
+        data_filt = np.array(id_array)
+        names = data_unfilt.dtype.names
+   
+        # Extract Butterworth filter polynomials
+        b = self.butter_polys[0]
+        a = self.butter_polys[1]
+
+        # Filter data and create new storage file.
+        from scipy.signal import filtfilt
+        for name in names:
+            if not name == 'time':
+                data_filt[name] = filtfilt(b, a, data_unfilt[name])
+
+        util.ndarray2storage(data_filt, self.id_filtered_fpath)
+
+    def cycle_joint_torque_plots(self):
+
+        if self.id_filtered_fpath:
+            if os.path.exists(self.id_filtered_fpath):
+                file_to_plot_fpath = self.id_filtered_fpath
+            else:
+                Exception('Filtered ID results path provided, but file does '
+                          'not exist')
+        else:
+            file_to_plot_fpath = self.id_solution_fpath
+
+        id_array = util.storage2numpy(file_to_plot_fpath)
 
         for cycle in self.trial.cycles:
-            fname = 'joint_torques_cycle%02d.pdf' % cycle.num
+            fname = '%s_joint_torques_cycle%02d.pdf' % (self.trial.id, cycle.num)
             output_filepath = os.path.join(self.path, fname)
 
             pp.plot_gait_torques(output_filepath, id_array,
