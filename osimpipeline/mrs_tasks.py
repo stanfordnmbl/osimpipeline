@@ -14,25 +14,38 @@ class TaskMRSDeGrooteSetup(task.SetupTask):
                 **kwargs):
         super(TaskMRSDeGrooteSetup, self).__init__('mrs', trial, 
             pathext=cost, **kwargs)
+        # assigns the cost that will be used as the one passed in the method call
         self.cost = cost
+        # modifies the name of the task based on the cost used
         if not (self.cost == 'Default'):
             self.name += '_%s' % self.cost
         self.doc = "Create a setup file for the DeGroote Muscle Redundancy Solver tool."
+        # specifies the kinematics ile location and name
         self.kinematics_file = os.path.join(self.trial.results_exp_path, 'ik',
                 '%s_%s_ik_solution.mot' % (self.study.name, self.trial.id))
+        # provides a path to the first locaiton from the specified one
+        # in this case it gives the path from the path of the task, to the path of the kinematics_file
         self.rel_kinematics_file = os.path.relpath(self.kinematics_file,
                 self.path)
+        # string manipulation to grab the filtered or non filtered ID result
         id_suffix = '_filtered' if use_filtered_id_results else ''
+        # specifies the actual ID result file
         self.kinetics_file = os.path.join(self.trial.results_exp_path,
                 'id', 'results', '%s_%s_id_solution%s.sto' % (self.study.name,
                     self.trial.id, id_suffix))
+        # gives the path to the kinetics file from the task directory
         self.rel_kinetics_file = os.path.relpath(self.kinetics_file,
                 self.path)
+        # creates a results setup matlab file
         self.results_setup_fpath = os.path.join(self.path, 'setup.m')
+        # creates a results postprocess file
         self.results_post_fpath = os.path.join(self.path, 'postprocess.m')
+        # creates the output workspace from matlab that will be used
         self.results_output_fpath = os.path.join(self.path, '%s_%s_mrs.mat' % (
             self.study.name, self.tricycle.id)) 
-        
+        #!!! what the heck is tricycle??
+
+        # sets up some file dependencies -> not super sure what these do.!! 
         self.file_dep += [
             self.kinematics_file,
             self.kinetics_file
@@ -41,12 +54,15 @@ class TaskMRSDeGrooteSetup(task.SetupTask):
         # Fill out setup.m template and write to results directory
         self.create_setup_action()
 
+        #!!! why are these commented out? seems like they are just creating the postprocess files to be used
         # Fill out postprocess.m template and write to results directory
         # self.add_action(
         #         ['templates/mrs/postprocess.m'],
         #         [self.results_post_fpath],
         #         self.fill_postprocess_template)
 
+
+        # would like an explanation of what is actually happening here!!!
     def create_setup_action(self): 
         self.add_action(
                     ['templates/%s/setup.m' % self.tool],
@@ -56,6 +72,8 @@ class TaskMRSDeGrooteSetup(task.SetupTask):
                     final_time=self.final_time,      
                     )
 
+    # this function is what is going into the template setup file for the mrs tasks
+    # and filling it with all of the actual study data
     def fill_setup_template(self, file_dep, target,
                             init_time=None, final_time=None):
         with open(file_dep[0]) as ft:
@@ -81,6 +99,7 @@ class TaskMRSDeGrooteSetup(task.SetupTask):
                     self.trial.primary_leg[0])
             content = content.replace('@COST@', self.cost)
 
+        # writes all of the content changes to the file
         with open(target[0], 'w') as f:
             f.write(content)
 
@@ -100,15 +119,19 @@ class TaskMRSDeGrooteSetup(task.SetupTask):
 class TaskMRSDeGroote(task.ToolTask):
     REGISTRY = []
     def __init__(self, trial, mrs_setup_task, **kwargs):
+        # this is a tool task subclass, so here it is defining the superclasses properties
         super(TaskMRSDeGroote, self).__init__(mrs_setup_task, trial, 
             opensim=False, **kwargs)
         self.doc = 'Run DeGroote Muscle Redundancy Solver in MATLAB.'
+        # copies the setup path over from the setup task
         self.results_setup_fpath  = mrs_setup_task.results_setup_fpath
+        # copies over the output path files
         self.results_output_fpath = mrs_setup_task.results_output_fpath
-
+        # based on the cost type, it names the task accordingly
         if not (mrs_setup_task.cost == 'Default'):
             self.name += '_%s' % mrs_setup_task.cost
 
+        # not sure what is actually happening here - allows the task to access these files?!!!
         self.file_dep += [
                 self.results_setup_fpath,
                 self.subject.scaled_model_fpath,
@@ -116,26 +139,34 @@ class TaskMRSDeGroote(task.ToolTask):
                 mrs_setup_task.kinetics_file,
                 ]
 
+        # adds the actions to run the class methods below
         self.actions += [
                 self.run_muscle_redundancy_solver,
                 self.delete_muscle_analysis_results,
                 ]
 
+        # sets the target files as the output folder for doit pipeline
         self.targets += [
                 self.results_output_fpath,
                 ]
 
+    # class method -> called when added to the actions list in the base class
+    # !!! going to want a walkthrough of how this interfaces with Matlab
     def run_muscle_redundancy_solver(self):
+        # sets the working directory as the path of the task
         with util.working_directory(self.path):
             # On Mac, CmdAction was causing MATLAB ipopt with GPOPS output to
             # not display properly.
 
+            # not sure
+            # sets up the matlab_log.txt file -> outputs of the matlab commands
             status = os.system('matlab %s -logfile matlab_log.txt -wait -r "try, '
                     "run('%s'); disp('SUCCESS'); "
                     'catch ME; disp(getReport(ME)); exit(2), end, exit(0);"\n'
                     % ('-automation' if os.name == 'nt' else '',
                         self.results_setup_fpath)
                     )
+            # exception catch for failed matlab commands
             if status != 0:
                 # print 'Non-zero exist status. Continuing....'
                 raise Exception('Non-zero exit status.')
@@ -143,25 +174,33 @@ class TaskMRSDeGroote(task.ToolTask):
             # Wait until output mat file exists to finish the action
             while True:
                 time.sleep(3.0)
-
                 mat_exists = os.path.isfile(self.results_output_fpath)
                 if mat_exists:
                     break
 
+    # class method that gets called each time the MRS tasks are called
+    # removes the previous results of any MRS tasks that were run for the specific trail or cycle 
     def delete_muscle_analysis_results(self):
         if os.path.exists(os.path.join(self.path, 'results')):
             import shutil
             shutil.rmtree(os.path.join(self.path, 'results'))
 
+
+# post task for the MRS tasks
+# this is a subclass of task
 class TaskMRSDeGrootePost(task.PostTask):
     REGISTRY = []
     def __init__(self, trial, mrs_setup_task, **kwargs):
+        # initializes the base post task structure
         super(TaskMRSDeGrootePost, self).__init__(mrs_setup_task, trial, 
             **kwargs)
         self.doc = 'Postprocess DeGroote Muscle Redundancy Solver in MATLAB.'
+        #!!! what is this?
         self.id = mrs_setup_task.tricycle.id
+        # sets the output path for all of the results
         self.results_output_fpath = mrs_setup_task.results_output_fpath
 
+        # edits the name of the task based on the cost name
         if not (mrs_setup_task.cost == 'Default'):
             self.name += '_%s' % mrs_setup_task.cost
 
@@ -179,7 +218,7 @@ class TaskMRSDeGrootePost(task.PostTask):
                         (self.study.name, mrs_setup_task.tricycle.id))],
                         self.plot_joint_moment_breakdown
                         )
-
+    # class method that is called to plot the muscle excitations and activations and reserve activations
     def plot_activations(self, file_dep, target):
 
         # Load mat file fields
@@ -194,6 +233,7 @@ class TaskMRSDeGrootePost(task.PostTask):
         pp.plot_muscle_activity(target[0], exc=exc, act=act)
         pp.plot_reserve_activity(target[1], reserves)
 
+    # class method called to plot the joint moments
     def plot_joint_moment_breakdown(self, file_dep, target):
 
         # Load mat file fields
@@ -209,14 +249,18 @@ class TaskMRSDeGrootePost(task.PostTask):
 
         # Clip large tendon forces at final time
         from warnings import warn
+        # iterate through the muscles
         for imusc in range(len(muscle_names)):
+            # assign the actual tendon force for that muscle
             tendon_force = tendon_forces[:,imusc]
+            # cutt off the ends of the force if they are uncharacteristically large
+            # note: only does this at the end (not the beginning)
             if (tendon_force[-1] > 10*tendon_force[-2]):
                 tendon_force[-1] = tendon_force[-2]
                 tendon_forces[:,imusc] = tendon_force
                 warn('WARNING: large %s tendon force at final time. '
                     'Clipping...' % muscle_names[imusc])
-
+        
         # Interpolate to match solution time
         from scipy.interpolate import interp1d
         ma_shape = (len(time), moment_arms_exp.shape[1], 
