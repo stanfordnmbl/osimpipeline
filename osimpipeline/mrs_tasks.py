@@ -12,13 +12,16 @@ class TaskMRSDeGrooteSetup(task.SetupTask):
     REGISTRY = []
     def __init__(self, trial, cost='Default', use_filtered_id_results=False,
                 **kwargs):
-        super(TaskMRSDeGrooteSetup, self).__init__('mrs', trial, 
-            pathext=cost, **kwargs)
         # assigns the cost that will be used as the one passed in the method call
         self.cost = cost
-        # modifies the name of the task based on the cost used
+        self.costdir = ''
+        # modifies the name of the task and output directory based on the cost used
         if not (self.cost == 'Default'):
+            self.costdir = cost
             self.name += '_%s' % self.cost
+
+        super(TaskMRSDeGrooteSetup, self).__init__('mrs', trial, 
+            pathext=self.costdir, **kwargs)
         self.doc = "Create a setup file for the DeGroote Muscle Redundancy Solver tool."
         # specifies the kinematics ile location and name
         self.kinematics_file = os.path.join(self.trial.results_exp_path, 'ik',
@@ -312,6 +315,10 @@ class TaskMRSDeGrooteMod(task.ToolTask):
         self.doc = 'Run a modified DeGroote Muscle Redundancy Solver in MATLAB.'
         self.basemrs_path = mrs_setup_task.path
         self.tricycle = mrs_setup_task.tricycle
+        
+        # print self.costdir
+
+
         self.path = os.path.join(self.study.config['results_path'],
             'mrsmod_%s' % self.mod_name, trial.rel_path, 'mrs',
             mrs_setup_task.cycle.name if mrs_setup_task.cycle else '', 
@@ -465,8 +472,9 @@ class TaskMRSDeGrooteModPost(task.PostTask):
                         self.plot_joint_moment_breakdown
                         )
 
-    def plot_activations(self, file_dep, target):
 
+
+    def plot_activations(self, file_dep, target):
         # Load mat file fields
         muscle_names = util.hdf2list(file_dep[0], 'MuscleNames', type=str)
         exc = util.hdf2pandas(file_dep[0], 'MExcitation', labels=muscle_names)
@@ -479,10 +487,16 @@ class TaskMRSDeGrooteModPost(task.PostTask):
         pp.plot_muscle_activity(target[0], exc=exc, act=act)
         pp.plot_reserve_activity(target[1], reserves)
 
-    def plot_joint_moment_breakdown(self, file_dep, target):
 
+
+
+
+
+    def plot_joint_moment_breakdown(self, file_dep, target):
         # Load mat file fields
         muscle_names = util.hdf2list(file_dep[0], 'MuscleNames', type=str)
+        # Load mat file fields
+        
         dof_names = util.hdf2list(file_dep[0],'DatStore/DOFNames', type=str)
         num_dofs = len(dof_names)
         num_muscles = len(muscle_names)
