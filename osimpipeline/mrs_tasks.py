@@ -166,7 +166,7 @@ class TaskMRSDeGroote(task.ToolTask):
             status = os.system('matlab %s -logfile matlab_log.txt -wait -r "try, '
                     "run('%s'); disp('SUCCESS'); "
                     'catch ME; disp(getReport(ME)); exit(2), end, exit(0);"\n'
-                    % ('-automation' if os.name == 'nt' else '',
+                    % ('' if os.name == 'nt' else '',
                         self.results_setup_fpath)
                     )
             # exception catch for failed matlab commands
@@ -417,11 +417,10 @@ class TaskMRSDeGrooteMod(task.ToolTask):
     def run_muscle_redundancy_solver(self):
         with util.working_directory(self.path):
 
-            status = os.system('matlab '
-                '%s -logfile matlab_log.txt -wait -r "try, '
+            status = os.system('matlab %s -logfile matlab_log.txt -wait -r "try, '
                 "run('%s'); disp('SUCCESS'); "
                 'catch ME; disp(getReport(ME)); exit(2), end, exit(0);"\n'
-                % ('-automation' if os.name == 'nt' else '',
+                % ('' if os.name == 'nt' else '',
                     self.setup_fpath)
                 )
 
