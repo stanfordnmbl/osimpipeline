@@ -283,7 +283,7 @@ class ToolTask(TrialTask):
                     ]
 
 class PostTask(TrialTask):
-    def __init__(self, setup_task, trial, cycle=None):
+    def __init__(self, setup_task, trial, cycle=None, **kwargs):
         super(PostTask, self).__init__(trial)
         self.methods = list()
         self.path = setup_task.path
