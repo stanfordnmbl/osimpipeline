@@ -19,12 +19,14 @@ class TaskMRSDeGrooteSetup(task.SetupTask):
 
         self.cost = cost
         self.costdir = ''
+        cost_suffix = ''
         if not (self.cost == 'Default'):
             self.costdir = cost
-            self.name += '_%s' % self.cost
+            cost_suffix = '_' + cost
 
         super(TaskMRSDeGrooteSetup, self).__init__(tool, trial, 
             pathext=self.costdir, **kwargs)
+        self.name += cost_suffix
         self.doc = "Create a setup file for the DeGroote Muscle Redundancy Solver tool."
         self.kinematics_file = os.path.join(self.trial.results_exp_path, 'ik',
                 '%s_%s_ik_solution.mot' % (self.study.name, self.trial.id))

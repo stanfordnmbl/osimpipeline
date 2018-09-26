@@ -662,7 +662,7 @@ class TaskIDPost(task.PostTask):
         self.ik_setup_task = id_setup_task.ik_setup_task
         self.id_solution_fpath = id_setup_task.solution_fpath
         self.plot_primary_leg_only = False
-        if kwargs['plot_primary_leg_only']:
+        if kwargs.get('plot_primary_leg_only'):
             self.plot_primary_leg_only = kwargs['plot_primary_leg_only']
 
         self.file_dep += [

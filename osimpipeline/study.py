@@ -186,7 +186,7 @@ class Trial(object):
         # cycle objects. This also supports cases where the notion of a cycle
         # may not exist (e.g. overground trials where only start and end times
         # given).
-        for icycle in range(len(self.heel_strikes) - 1 + (self.stride_times!=None)):
+        for icycle in range(len(self.heel_strikes) - 1):
             start = self.heel_strikes[icycle]
             if self.stride_times:
                 end = start + self.stride_times[icycle]
@@ -323,7 +323,7 @@ class Subject(object):
     def __init__(self, study, num, mass, metadata=None):
         self.study = study
         self.num = num
-        self.name = 'subject%03i' % num
+        self.name = 'subject%02i' % num
         self.mass = mass
         self.metadata = metadata
         # Relative path to the subject folder; can be used for the source
