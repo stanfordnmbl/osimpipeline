@@ -964,7 +964,7 @@ def plot_gait_torques(output_filepath, actu, primary_leg, cycle_start,
         pl.grid(b=True, which='minor', color='gray', linestyle='--')
 
     fig = pl.figure(figsize=(4, 12))
-    plot_coordinate(1, 'hip_flexion', label='hip flexion moment')
+    plot_coordinate(1, 'hip_flexion', label='hip extension moment')
     plot_coordinate(2, 'knee_angle', negate=True, label='knee flexion moment')
     plot_coordinate(3, 'ankle_angle', label='ankle dorsiflexion moment')
 

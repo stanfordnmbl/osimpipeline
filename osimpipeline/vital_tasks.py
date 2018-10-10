@@ -706,11 +706,15 @@ class TaskIDPost(task.PostTask):
         b = self.butter_polys[0]
         a = self.butter_polys[1]
 
+        # come up with second filtering strategy to get rid of impulse
+
+
         # Filter data and create new storage file.
         from scipy.signal import filtfilt
         for name in names:
             if not name == 'time':
                 data_filt[name] = filtfilt(b, a, data_unfilt[name])
+
 
         util.ndarray2storage(data_filt, self.id_filtered_fpath)
 

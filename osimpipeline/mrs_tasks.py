@@ -8,6 +8,9 @@ import utilities as util
 import postprocessing as pp
 
 
+import pdb
+
+
 class TaskMRSDeGrooteSetup(task.SetupTask):
     REGISTRY = []
     def __init__(self, trial, cost='Default', use_filtered_id_results=False,
@@ -202,6 +205,9 @@ class TaskMRSDeGrootePost(task.PostTask):
         self.id = mrs_setup_task.tricycle.id
         # sets the output path for all of the results
         self.results_output_fpath = mrs_setup_task.results_output_fpath
+        # print "\nhere we go:"
+        # print self.results_output_fpath
+        
 
         # edits the name of the task based on the cost name
         if not (mrs_setup_task.cost == 'Default'):
@@ -298,39 +304,65 @@ class TaskMRSDeGrooteMod(task.ToolTask):
             Does the modified MRS optimization problem include
             constant parameters as variables?
         """
+        # print "debug"
+        # pdb.set_trace()
         self.mod_name = mod_name
+        # print self.mod_name
         self.tool = 'mrsmod_%s' % self.mod_name
+        # print self.tool
         mrs_setup_task.tool = self.tool 
 
         super(TaskMRSDeGrooteMod, self).__init__(mrs_setup_task, trial,
             opensim=False, **kwargs)
         self.cost = mrs_setup_task.cost
+        # print self.cost
         self.costdir = ''
+        # print self.costdir
         if not (self.cost == 'Default'):
             self.name += "_%s" % self.cost
             self.costdir = self.cost
-        self.mrs_setup_task = mrs_setup_task
-        self.description = description
-        self.mrsflags = mrsflags
-        self.doc = 'Run a modified DeGroote Muscle Redundancy Solver in MATLAB.'
-        self.basemrs_path = mrs_setup_task.path
-        self.tricycle = mrs_setup_task.tricycle
-        
+        # print self.name
         # print self.costdir
+        self.mrs_setup_task = mrs_setup_task
+        # print self.mrs_setup_task
+        self.description = description
+        # print self.description
+        self.mrsflags = mrsflags
+        # print self.mrsflags
+        self.doc = 'Run a modified DeGroote Muscle Redundancy Solver in MATLAB.'
+        # print self.doc
+        self.basemrs_path = mrs_setup_task.path
+        # print self.basemrs_path
+        self.tricycle = mrs_setup_task.tricycle
+        # print self.tricycle
+        
 
 
         self.path = os.path.join(self.study.config['results_path'],
             'mrsmod_%s' % self.mod_name, trial.rel_path, 'mrs',
             mrs_setup_task.cycle.name if mrs_setup_task.cycle else '', 
             self.costdir)
+        # print self.path
         self.setup_template_fpath = 'templates/mrs/setup.m'
+        # print self.setup_template_fpath
         self.setup_fpath = os.path.join(self.path, 'setup.m')
+        # print self.setup_fpath
         self.kinematics_fpath = mrs_setup_task.kinematics_file
+        # print self.kinematics_fpath
         self.kinetics_fpath = mrs_setup_task.kinetics_file
+        # print self.kinetics_fpath
         self.results_output_fpath = os.path.join(self.path,
                     '%s_%s_mrs.mat' % 
                     (self.study.name, mrs_setup_task.tricycle.id))
+        # print self.results_output_fpath
         self.cost = mrs_setup_task.cost
+        # print self.cost
+        
+        # print "\nat end of initial"
+        # print self.path
+
+
+
 
         self.file_dep += [
                 self.setup_template_fpath,
@@ -338,6 +370,8 @@ class TaskMRSDeGrooteMod(task.ToolTask):
                 self.kinematics_fpath,
                 self.kinetics_fpath,
                 ]
+        
+        # print "\n here \n"
 
         self.actions += [
                 self.make_path,
@@ -361,11 +395,22 @@ class TaskMRSDeGrooteMod(task.ToolTask):
                 self.results_output_fpath,
                 ]
 
+
+
     def make_path(self):
+        
+        # print "\nin make_path"
+        # print self.path
+
         if not os.path.exists(self.path): os.makedirs(self.path)
 
     def fill_setup_template(self, file_dep, target, 
                             init_time=None, final_time=None):
+        
+        # print "\nin fill_setup_template"
+        # print self.setup_fpath
+        # print self.results_output_fpath
+        
         with open(self.setup_template_fpath) as ft:
             content = ft.read()
 
@@ -416,6 +461,9 @@ class TaskMRSDeGrooteMod(task.ToolTask):
 
     def run_muscle_redundancy_solver(self):
         with util.working_directory(self.path):
+            
+            # print "\nin run_muscle_redundancy_solver"
+            # print self.setup_fpath
 
             status = os.system('matlab %s -logfile matlab_log.txt -wait -r "try, '
                 "run('%s'); disp('SUCCESS'); "
