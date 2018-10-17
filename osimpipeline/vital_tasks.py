@@ -593,6 +593,7 @@ class TaskIKPost(task.PostTask):
         # if os.path.exists(self.errorplot_fpath):
         #     os.rename(self.errorplot_fpath,
         #             self.errorplot_fpath.replace('.pdf', '_backup.pdf'))
+
         pp.plot_marker_error(target[0], self.error_markers,
             10, self.gl, file_dep[0], file_dep[1], file_dep[2])
 
@@ -713,7 +714,7 @@ class TaskIDPost(task.PostTask):
         from scipy.signal import filtfilt
         for name in names:
             if not name == 'time':
-                data_filt[name] = filtfilt(b, a, data_unfilt[name])
+                data_filt[name] = filtfilt(b, a, data_unfilt[name], padtype='constant', method='gust', irlen=100)
 
 
         util.ndarray2storage(data_filt, self.id_filtered_fpath)

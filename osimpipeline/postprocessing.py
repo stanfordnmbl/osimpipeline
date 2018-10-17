@@ -395,6 +395,7 @@ def marker_error_from_kinematics(model_filepath, states_storage,
     for mname in marker_names:
         data[mname] = []
 
+
     def marker_error_for_frame(model, state, data, marker_names, trc):
         for mname in marker_names:
             marker = model.getMarkerSet().get(mname)
@@ -431,6 +432,7 @@ def marker_error_from_kinematics(model_filepath, states_storage,
 
 def plot_marker_error_general(output_filepath, marker_names, ymax, gl,
         data, mult=100):
+    
 
     def xlim(times):
         if gl != None:
@@ -464,6 +466,9 @@ def plot_marker_error_general(output_filepath, marker_names, ymax, gl,
                     label=name)
 
         else:
+            # print("DEBUG")
+            # print(marker_name)
+
             plot(np.array(data['time']), mult * np.array(data[marker_name]),
                 label=marker_name)
         pl.legend(frameon=False, loc='best')
