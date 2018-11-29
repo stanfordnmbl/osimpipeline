@@ -516,7 +516,6 @@ class TaskIKSetup(task.SetupTask):
                 self.results_tasks_fpath, self.path))
             content = content.replace('@INIT_TIME@', '%.4f' % init_time)
             content = content.replace('@FINAL_TIME@', '%.4f' % final_time)
-            print("final_timeik=" + str(final_time))
 
         with open(target[0], 'w') as f:
             f.write(content)
@@ -630,7 +629,7 @@ class TaskIDSetup(task.SetupTask):
                 self.rel_kinematics_fpath)
             content = content.replace('@INIT_TIME@', '%.4f' % init_time)
             content = content.replace('@FINAL_TIME@', '%.4f' % final_time)
-            print("final_time=id" + str(final_time))
+            # print("final_time=id" + str(final_time))
             
         with open(target[0], 'w') as f:
             f.write(content)
@@ -716,8 +715,8 @@ class TaskIDPost(task.PostTask):
         from scipy.signal import filtfilt
         for name in names:
             if not name == 'time':
-                # data_filt[name] = filtfilt(b, a, data_unfilt[name], padtype='constant', method='gust', irlen=100)
-                data_filt[name] = data_unfilt[name]
+                data_filt[name] = filtfilt(b, a, data_unfilt[name]) # , padtype='constant', method='gust', irlen=100)
+                # data_filt[name] = data_unfilt[name]
 
         util.ndarray2storage(data_filt, self.id_filtered_fpath)
 

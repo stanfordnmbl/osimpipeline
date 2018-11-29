@@ -139,7 +139,7 @@ class SetupTask(TrialTask):
             first_cycle = trial.cycles[0]
             last_cycle = trial.cycles[-1]
             self.init_time = first_cycle.start
-            self.final_time = last_cycle.end+0.5
+            self.final_time = last_cycle.end  # + 0.5 # for subject128 - want to eliminate this
 
         if pathext:
             self.path = os.path.join(self.path, pathext)

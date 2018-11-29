@@ -21,12 +21,12 @@ class TaskMRSDeGrooteSetup(task.SetupTask):
         # modifies the name of the task and output directory based on the cost used
         if not (self.cost == 'Default'):
             self.costdir = cost
-            self.name += '_%s' % self.cost
+            # self.name += '_%s' % self.cost
 
         super(TaskMRSDeGrooteSetup, self).__init__('mrs', trial, 
             pathext=self.costdir, **kwargs)
         self.doc = "Create a setup file for the DeGroote Muscle Redundancy Solver tool."
-        # specifies the kinematics ile location and name
+        # specifies the kinematics file location and name
         self.kinematics_file = os.path.join(self.trial.results_exp_path, 'ik',
                 '%s_%s_ik_solution.mot' % (self.study.name, self.trial.id))
         # provides a path to the first locaiton from the specified one
