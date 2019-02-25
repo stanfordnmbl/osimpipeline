@@ -283,7 +283,18 @@ class TaskMRSDeGrooteMod(task.ToolTask):
             Does the modified MRS optimization problem include
             constant parameters as variables?
         """
-        self.mod_name = mod_name
+
+        # Handle cases where task results live in a subdirectory. The user
+        # may pass a mod name like 'basename/subname', indicating that an 
+        # subdirectory should be created within the one created for 'basename'.
+        # This is convenient for automatic task naming and organization of 
+        # output data that the user may wish to keep grouped together.
+        self.mod_dir = mod_name.replace('/','\\')
+        if len(mod_name.split('/')) > 1:
+            self.mod_name = '_'.join(mod_name.split('/'))
+        else:
+            self.mod_name = mod_name
+
         self.tool = self.mod_name
         mrs_setup_task.tool = self.mod_name
 
@@ -300,12 +311,9 @@ class TaskMRSDeGrooteMod(task.ToolTask):
         self.doc = 'Run a modified DeGroote Muscle Redundancy Solver in MATLAB.'
         self.basemrs_path = mrs_setup_task.path
         self.tricycle = mrs_setup_task.tricycle
-        
-        # print self.costdir
-
 
         self.path = os.path.join(self.study.config['results_path'],
-            self.mod_name, trial.rel_path, 'mrs',
+            self.mod_dir, trial.rel_path, 'mrs',
             mrs_setup_task.cycle.name if mrs_setup_task.cycle else '', 
             self.costdir)
         self.setup_template_fpath = 'templates/mrs/setup.m'
@@ -405,7 +413,7 @@ class TaskMRSDeGrooteMod(task.ToolTask):
             status = os.system('matlab %s -logfile matlab_log.txt -wait -r "try, '
                 "run('%s'); disp('SUCCESS'); "
                 'catch ME; disp(getReport(ME)); exit(2), end, exit(0);"\n'
-                % ('' if os.name == 'nt' else '',
+                % ('-automation' if os.name == 'nt' else '',
                     self.setup_fpath)
                 )
 
@@ -471,11 +479,6 @@ class TaskMRSDeGrooteModPost(task.PostTask):
         # Create plots
         pp.plot_muscle_activity(target[0], exc=exc, act=act)
         pp.plot_reserve_activity(target[1], reserves)
-
-
-
-
-
 
     def plot_joint_moment_breakdown(self, file_dep, target):
         # Load mat file fields
