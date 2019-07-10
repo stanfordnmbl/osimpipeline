@@ -7,6 +7,7 @@ import pylab as pl
 import pandas as pd
 import numpy as np
 import opensim as osm
+import scipy
 
 import task
 import utilities as util
@@ -550,23 +551,82 @@ class TaskIKPost(task.PostTask):
         self.marker_errors_plotpath = '%s/marker_error.pdf' % self.path
         self.error_markers = error_markers
         self.side = side
+        self.avg_stride_length_filepath = '%s/avg_stride_lengths.csv' % self.path
+        self.avg_stride_length_plotpath = '%s/avg_stride_lengths.png' % self.path
 
-        self.add_action([ik_setup_task.solution_fpath],
-                        [self.joint_angles_plotpath],
-                        self.joint_angle_plots)
+        # self.add_action([ik_setup_task.solution_fpath],
+        #                 [self.joint_angles_plotpath],
+        #                 self.joint_angle_plots)
 
-        if self.error_markers:
-            self.add_action([self.subject.scaled_model_fpath,
-                            ik_setup_task.model_markers_fpath,
-                            self.trial.marker_trajectories_fpath],
-                            [self.marker_errors_plotpath],
-                            self.marker_error_plots)
+        # if self.error_markers:
+        #     self.add_action([self.subject.scaled_model_fpath,
+        #                     ik_setup_task.model_markers_fpath,
+        #                     self.trial.marker_trajectories_fpath],
+        #                     [self.marker_errors_plotpath],
+        #                     self.marker_error_plots)
 
         if self.trial.cycles:
-            self.add_action([ik_setup_task.solution_fpath],
-                        [self.avg_joint_angles_plotpath,
-                        self.avg_joint_angles_filepath],
-                        self.avg_joint_angle_plot)
+            # self.add_action([ik_setup_task.solution_fpath],
+            #             [self.avg_joint_angles_plotpath,
+            #             self.avg_joint_angles_filepath],
+            #             self.avg_joint_angle_plot)
+
+            self.add_action([ik_setup_task.model_markers_fpath],
+                        [self.avg_stride_length_plotpath,
+                        self.avg_stride_length_filepath],
+                        self.avg_stride_length_plot)
+            
+
+
+    def avg_stride_length_plot(self, file_dep, target):
+        print "in the avg stride length plot\n"
+        sto_markers = pp.storage2numpy(file_dep[0])
+        cycle_start_marker = [cycle.gl.cycle_start for cycle in self.trial.cycles]
+        cycle_end_marker = [cycle.gl.cycle_end for cycle in self.trial.cycles]
+        cycle_start_marker_ind = [pp.nearest_index(sto_markers['time'],time) for time in cycle_start_marker]
+        cycle_end_marker_ind = [pp.nearest_index(sto_markers['time'],time) for time in cycle_end_marker]
+
+        # todo: get some metric of height -> C7 y pos. ??
+
+
+
+        print "\n****remember to specify what side, if there are multiple\n"
+        RLAx = sto_markers['RLA_tx']
+        RLAy = sto_markers['RLA_ty']
+        RLAz = sto_markers['RLA_tz']
+        C7y  = sto_markers['C7_ty']
+        avgheight = np.mean(C7y)
+
+        RLA_normalized = RLAx/avgheight
+
+        markertops, _ = scipy.signal.find_peaks(RLA_normalized)
+        markermins = np.array(scipy.signal.argrelextrema(RLA_normalized, np.less))
+        markermins = markermins[0]
+        # print markermins
+        for i in range(10):
+            # print i
+            # print markermins[i]
+            # print cycle_start_marker_ind[i]
+            if markermins[i] < cycle_start_marker_ind[i]:
+                markermins = np.delete(markermins, i)
+
+        ## this will plot the RLA x marker trajectory
+        # pp.plot_marker_trajectory(target[0], sto_markers, cycle_start_marker_ind, cycle_end_marker_ind)
+
+        # print "now to get the stride lengths"
+        num_strides = len(cycle_end_marker)
+        stride_lengths = np.zeros(num_strides)
+
+        vec_len = np.zeros((num_strides,3))
+        for i in range(10):
+            stride_length_try = abs(RLA_normalized[cycle_start_marker_ind[i]] - RLA_normalized[markermins[i]]) + abs(RLA_normalized[cycle_start_marker_ind[i]] - RLA_normalized[markermins[i]])
+            stride_lengths[i] = stride_length_try
+
+
+        # TODO: make another function that will look up all the stride length things and then plot them together
+        pp.average_stride_lengths(self, stride_lengths, target[1])
+
+
 
     def avg_joint_angle_plot(self, file_dep, target):
         for cycle in self.trial.cycles:
@@ -593,7 +653,6 @@ class TaskIKPost(task.PostTask):
         # if os.path.exists(self.errorplot_fpath):
         #     os.rename(self.errorplot_fpath,
         #             self.errorplot_fpath.replace('.pdf', '_backup.pdf'))
-
         pp.plot_marker_error(target[0], self.error_markers,
             10, self.gl, file_dep[0], file_dep[1], file_dep[2])
 
