@@ -18,6 +18,8 @@ import tables
 from scipy.signal import butter, filtfilt
 import scipy.io as sio
 from numpy import nanmean, nanstd
+import scipy
+import csv
 
 import platform
 
@@ -495,6 +497,72 @@ def plot_marker_error_from_kinematics(output_filepath, marker_names, ymax, gl,
     *args, **kwargs):
     data = marker_error_from_kinematics(*args, **kwargs)
     plot_marker_error_general(output_filepath, marker_names, ymax, gl, data)
+
+def plot_marker_trajectory(output_filepath, marker_data, start_ind, end_ind):
+    time = marker_data['time']
+    RLAx = marker_data['RLA_tx']
+    twocycles = RLAx[start_ind[0]:end_ind[0]]
+    
+    markerpeaks, _ = scipy.signal.find_peaks(RLAx)
+    print markerpeaks
+    for each in markerpeaks:
+        print each
+    test = [RLAx[each] for each in markerpeaks]
+
+    markerpeaks2 = scipy.signal.argrelextrema(RLAx, np.less)
+    print markerpeaks2
+    test2 = [RLAx[each] for each in markerpeaks2]
+
+
+    fig = pl.figure(figsize=(6,6))
+    ax1 = fig.add_subplot(1,2,1)
+    ax1.plot(RLAx, label='RLAx')
+    ax2 = fig.add_subplot(1,2,2)
+    ax2.plot(twocycles)
+    ax1.plot(markerpeaks,test,marker='o')
+    ax1.plot(markerpeaks2,test2,marker='*')
+    fig.tight_layout()
+    # plt.show()
+    fig.savefig(output_filepath)
+    pl.close(fig)
+
+
+
+def average_stride_lengths(self, stride_data, f_name):
+    # print "in average function"
+    # print f_name
+    end_1 = '\\ik'
+    inter_1 = (f_name.split(end_1))[0]
+    start_1 = 'subject'
+    inter_2 = (inter_1.split(start_1))[1]
+    start_2 = '\\'
+    inter_3 = (inter_2.split(start_2))[0]
+
+    start = 'subject'
+    end = "\\ik"
+    start2 = "\\"
+    inter = (f_name.split(start))[1]
+    inter2 = (inter.split(end))[0]
+    inter3 = (inter2.split(start2))[1]
+    
+
+    newstride = np.reshape(stride_data, (10,1))
+    filler = np.empty([10,1], dtype='S6')
+    for i in range(len(filler)):
+        filler[i] = inter3
+    fullvec = np.concatenate((filler, newstride), axis=1)
+
+    with open(f_name, 'wb') as f:
+        f.write('this is each cycle step length for one subject\n')
+        # f.write('subject' + inter_3 + '\n')
+        # np.savetxt(f, fullvec, delimiter='\t', fmt="%s")
+
+        ## attempt 2
+        writer = csv.writer(f)
+        writer.writerow(['subject', 'condition', 'cycle', 'step_length'])
+        for i in range(len(filler)):
+            writer.writerow(['subject' + str(inter_3), filler[i][0], 'cycle' + str(i+1), newstride[i][0]])
+
 
 
 def plot_pgc(time, data, gl, side='left', axes=None, plot_toeoff=False, *args,
