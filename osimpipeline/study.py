@@ -208,6 +208,14 @@ class Trial(object):
             if self.right_toeoffs:
                 gait_landmarks.right_toeoff = self.right_toeoffs[icycle]
 
+            # print "\ntrying to find my steps\n"
+            # print self.primary_leg
+            # print gait_landmarks.primary_leg
+            # print gait_landmarks.left_strike
+            # print gait_landmarks.left_toeoff
+            # print gait_landmarks.right_strike
+            # print gait_landmarks.right_toeoff
+
             self._add_cycle(icycle+1, gait_landmarks)
 
 
