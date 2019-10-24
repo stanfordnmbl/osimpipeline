@@ -769,6 +769,10 @@ class TaskIDPost(task.PostTask):
 
         # come up with second filtering strategy to get rid of impulse
 
+        '''
+        b, a = butter(4, 0.15, btype='low', analog=False) # old is 4, 0.15 what I did is 6, 0.0875
+        butter_polys = (b, a)
+        '''
 
         # Filter data and create new storage file.
         from scipy.signal import filtfilt
