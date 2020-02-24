@@ -548,6 +548,7 @@ class TaskIKPost(task.PostTask):
         self.avg_joint_angles_plotpath = '%s/avg_joint_angles.pdf' % self.path
         self.avg_joint_angles_filepath = '%s/avg_joint_angles.csv' % self.path
         self.marker_errors_plotpath = '%s/marker_error.pdf' % self.path
+        self.marker_errors_filepath = '%s/marker_error.csv' % self.path
         self.error_markers = error_markers
         self.side = side
 
@@ -559,7 +560,8 @@ class TaskIKPost(task.PostTask):
             self.add_action([self.subject.scaled_model_fpath,
                             ik_setup_task.model_markers_fpath,
                             self.trial.marker_trajectories_fpath],
-                            [self.marker_errors_plotpath],
+                            [self.marker_errors_plotpath,
+                             self.marker_errors_filepath],
                             self.marker_error_plots)
 
         if self.trial.cycles:
@@ -593,7 +595,7 @@ class TaskIKPost(task.PostTask):
         # if os.path.exists(self.errorplot_fpath):
         #     os.rename(self.errorplot_fpath,
         #             self.errorplot_fpath.replace('.pdf', '_backup.pdf'))
-        pp.plot_marker_error(target[0], self.error_markers,
+        pp.plot_marker_error(target[0], target[1], self.error_markers,
             10, self.gl, file_dep[0], file_dep[1], file_dep[2])
 
 

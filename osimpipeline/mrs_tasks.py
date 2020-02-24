@@ -11,7 +11,7 @@ import postprocessing as pp
 class TaskMRSDeGrooteSetup(task.SetupTask):
     REGISTRY = []
     def __init__(self, trial, cost='Default', alt_tool_name=None, 
-    		use_filtered_id_results=False, **kwargs):
+    		use_filtered_id_results=False, actdyn='explicit', **kwargs):
         if alt_tool_name == None:
             tool = 'mrs'
         else:
@@ -28,6 +28,7 @@ class TaskMRSDeGrooteSetup(task.SetupTask):
             pathext=self.costdir, **kwargs)
         self.name += cost_suffix
         self.doc = "Create a setup file for the DeGroote Muscle Redundancy Solver tool."
+        self.actdyn = actdyn
         self.kinematics_file = os.path.join(self.trial.results_exp_path, 'ik',
                 '%s_%s_ik_solution.mot' % (self.study.name, self.trial.id))
 
@@ -45,8 +46,8 @@ class TaskMRSDeGrooteSetup(task.SetupTask):
             self.study.name, self.tricycle.id)) 
 
         self.file_dep += [
-            self.kinematics_file,
-            self.kinetics_file
+            # self.kinematics_file,
+            # self.kinetics_file
         ]
 
         self.create_setup_action()
@@ -89,6 +90,7 @@ class TaskMRSDeGrooteSetup(task.SetupTask):
             content = content.replace('@SIDE@',
                     self.trial.primary_leg[0])
             content = content.replace('@COST@', self.cost)
+            content = content.replace('@ACTDYN@', self.actdyn)
 
         with open(target[0], 'w') as f:
             f.write(content)
@@ -120,8 +122,8 @@ class TaskMRSDeGroote(task.ToolTask):
         self.file_dep += [
                 self.results_setup_fpath,
                 self.subject.scaled_model_fpath,
-                mrs_setup_task.kinematics_file,
-                mrs_setup_task.kinetics_file,
+                # mrs_setup_task.kinematics_file,
+                # mrs_setup_task.kinetics_file,
                 ]
 
         self.actions += [
@@ -139,8 +141,9 @@ class TaskMRSDeGroote(task.ToolTask):
             # On Mac, CmdAction was causing MATLAB ipopt with GPOPS output to
             # not display properly.
 
-
-            status = os.system('matlab %s -logfile matlab_log.txt -wait -r "try, '
+            import subprocess
+            status = subprocess.call('matlab %s -logfile matlab_log.txt -wait -r'
+                    ' "try, '
                     "run('%s'); disp('SUCCESS'); "
                     'catch ME; disp(getReport(ME)); exit(2), end, exit(0);"\n'
                     % ('-automation' if os.name == 'nt' else '',
@@ -301,6 +304,7 @@ class TaskMRSDeGrooteMod(task.ToolTask):
         super(TaskMRSDeGrooteMod, self).__init__(mrs_setup_task, trial,
             opensim=False, **kwargs)
         self.cost = mrs_setup_task.cost
+        self.actdyn = mrs_setup_task.actdyn
         self.costdir = ''
         if not (self.cost == 'Default'):
             self.name += "_%s" % self.cost
@@ -328,8 +332,8 @@ class TaskMRSDeGrooteMod(task.ToolTask):
         self.file_dep += [
                 self.setup_template_fpath,
                 self.subject.scaled_model_fpath,
-                self.kinematics_fpath,
-                self.kinetics_fpath,
+                # self.kinematics_fpath,
+                # self.kinetics_fpath,
                 ]
 
         self.actions += [
@@ -403,6 +407,8 @@ class TaskMRSDeGrooteMod(task.ToolTask):
             content = content.replace('@SIDE@',
                     self.trial.primary_leg[0])
             content = content.replace('@COST@', self.cost)
+            content = content.replace('@ACTDYN@', self.actdyn)
+
 
         with open(self.setup_fpath, 'w') as f:
             f.write(content)
@@ -410,7 +416,8 @@ class TaskMRSDeGrooteMod(task.ToolTask):
     def run_muscle_redundancy_solver(self):
         with util.working_directory(self.path):
 
-            status = os.system('matlab %s -logfile matlab_log.txt -wait -r "try, '
+            import subprocess
+            status = subprocess.call('matlab %s -logfile matlab_log.txt -wait -r "try, '
                 "run('%s'); disp('SUCCESS'); "
                 'catch ME; disp(getReport(ME)); exit(2), end, exit(0);"\n'
                 % ('-automation' if os.name == 'nt' else '',

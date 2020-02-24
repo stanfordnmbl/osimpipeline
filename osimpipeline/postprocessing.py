@@ -331,6 +331,7 @@ def marker_error(model_filepath, model_markers_filepath,
             print ("WARNING: " + mname + " model marker locations not found. "
                 "An IK task may not have been specified for this marker. "
                 "Skipping...")
+            marker_err.pop(mname, None)
         else:
             x_model_loc = model_markers[mname + '_tx']
             y_model_loc = model_markers[mname + '_ty']
@@ -429,8 +430,8 @@ def marker_error_from_kinematics(model_filepath, states_storage,
     return marker_err
 
 
-def plot_marker_error_general(output_filepath, marker_names, ymax, gl,
-        data, mult=100):
+def plot_marker_error_general(output_plotpath, output_csvpath, marker_names, 
+        ymax, gl, data, mult=100):
 
     def xlim(times):
         if gl != None:
@@ -477,20 +478,24 @@ def plot_marker_error_general(output_filepath, marker_names, ymax, gl,
         pl.axhline(6, c='gray', ls='--')
 
     pl.tight_layout()
-    fig.savefig(output_filepath)
+    fig.savefig(output_plotpath)
     pl.close(fig)
 
+    # save all marker errors to file
+    df = pd.DataFrame(data)
+    df.to_csv(output_csvpath)
 
-def plot_marker_error(output_filepath, marker_names, ymax, gl, *args,
-    **kwargs):
+def plot_marker_error(output_pdf_filepath, output_csv_filepath, marker_names, 
+    ymax, gl, *args, **kwargs):
     data = marker_error(*args, **kwargs)
-    plot_marker_error_general(output_filepath, marker_names, ymax, gl, data)
+    plot_marker_error_general(output_pdf_filepath, output_csv_filepath, 
+        marker_names, ymax, gl, data)
 
-def plot_marker_error_from_kinematics(output_filepath, marker_names, ymax, gl,
-    *args, **kwargs):
+def plot_marker_error_from_kinematics(output_pdf_filepath, output_csv_filepath,
+    marker_names, ymax, gl, *args, **kwargs):
     data = marker_error_from_kinematics(*args, **kwargs)
-    plot_marker_error_general(output_filepath, marker_names, ymax, gl, data)
-
+    plot_marker_error_general(output_pdf_filepath, output_csv_filepath,
+        marker_names, ymax, gl, data)
 
 def plot_pgc(time, data, gl, side='left', axes=None, plot_toeoff=False, *args,
         **kwargs):
