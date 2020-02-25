@@ -226,6 +226,9 @@ class Trial(object):
         self.cycles.append(cycle)
         return cycle
 
+    def get_cycles(self):
+        return self.cycles
+
     def get_cycle(self, num):
         for cycle in self.cycles:
             if cycle.num == num:

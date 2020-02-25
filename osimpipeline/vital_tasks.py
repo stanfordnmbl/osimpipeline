@@ -41,7 +41,6 @@ class TaskCopyGenericModelFilesToResults(task.StudyTask):
                 [study.cmc_actuators_fpath],
                 self.copy_file)
 
-
 class TaskCopyMotionCaptureData(task.StudyTask):
     """This a very generic task for copying motion capture data (marker
     trajectories, ground reaction, electromyography) and putting it in
@@ -310,7 +309,6 @@ class TaskScaleSetup(task.SubjectTask):
         if not os.path.exists(self.results_scale_path):
             os.makedirs(self.results_scale_path)
         tool.printToXML(target['setup'])
-
 
 class TaskScale(task.SubjectTask):
     REGISTRY = []
