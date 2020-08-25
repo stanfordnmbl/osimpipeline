@@ -342,10 +342,7 @@ class TaskScale(task.SubjectTask):
         # -------
         self.actions += [
                 self.check_tasks,
-                CmdAction(
-                    '"' + os.path.join(self.study.config['opensim_home'],
-                        'bin','scale') + '" -S %s' % (setup_fname),
-                    cwd=scale_setup_task.results_scale_path),
+                self.run_scale,
                 self.create_residual_actuators,
                 ]
 
@@ -362,6 +359,14 @@ class TaskScale(task.SubjectTask):
                 scale_setup_task.output_markerset_fpath,
                 self.residual_actuators_fpath,
                 ]
+
+    def run_scale(self):
+        import subprocess
+        scale_path = os.path.join(self.study.config['opensim_home'],
+                        'bin','scale') 
+        status = subprocess.call('%s -S %s' % (scale_path, self.setup_fpath))
+        if status != 0:
+            raise Exception('Non-zero exit status.')
 
     def check_tasks(self):
         """Lists tasks that are <apply>'d for markers that either

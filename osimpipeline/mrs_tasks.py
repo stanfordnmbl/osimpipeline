@@ -165,7 +165,6 @@ class TaskMRSDeGroote(task.ToolTask):
             import shutil
             shutil.rmtree(os.path.join(self.path, 'results'))
 
-
 class TaskMRSDeGrootePost(task.PostTask):
     REGISTRY = []
     def __init__(self, trial, mrs_setup_task, **kwargs):
