@@ -140,7 +140,6 @@ class TaskMRSDeGroote(task.ToolTask):
         with util.working_directory(self.path):
             # On Mac, CmdAction was causing MATLAB ipopt with GPOPS output to
             # not display properly.
-
             import subprocess
             status = subprocess.call('matlab %s -logfile matlab_log.txt -wait -r'
                     ' "try, '
