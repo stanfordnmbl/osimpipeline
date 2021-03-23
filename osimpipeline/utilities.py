@@ -186,7 +186,6 @@ def get_sum_total_muscle_volume(model_fpath, specific_tension):
 
     return Vtotal
 
-
 def strengthen_muscles(model_fpath, new_model_fpath, scale_factor):
     """Scales all muscles' maximum isometric force by `scale_factor`.
     Parameters
@@ -203,7 +202,6 @@ def strengthen_muscles(model_fpath, new_model_fpath, scale_factor):
         m.updMuscles().get(i_m).setMaxIsometricForce(
                 m.getMuscles().get(i_m).getMaxIsometricForce() * scale_factor)
     printobj(m, new_model_fpath)
-
 
 def gait_landmarks_from_grf(mot_file,
         right_grfy_column_name='ground_force_vy',
