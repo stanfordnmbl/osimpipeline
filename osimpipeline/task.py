@@ -110,7 +110,7 @@ class TrialTask(SubjectTask):
         self.trial = trial
 
 class SetupTask(TrialTask):
-    def __init__(self, tool, trial, cycle=None):
+    def __init__(self, tool, trial, pathext=None, cycle=None):
         super(SetupTask, self).__init__(trial)
         self.tool = tool
         self.trial = trial
@@ -139,7 +139,11 @@ class SetupTask(TrialTask):
             first_cycle = trial.cycles[0]
             last_cycle = trial.cycles[-1]
             self.init_time = first_cycle.start
-            self.final_time = last_cycle.end
+            self.final_time = last_cycle.end+0.5
+
+        if pathext:
+            self.path = os.path.join(self.path, pathext)
+            if not os.path.exists(self.path): os.makedirs(self.path)
 
         self.source_path = os.path.join(trial.rel_path, self.tool)
         self.source_extloads_fpath = os.path.join(self.source_path,
@@ -244,10 +248,9 @@ class SetupTask(TrialTask):
 
 class ToolTask(TrialTask):
     def __init__(self, setup_task, trial, cycle=None,
-                 exec_name=None, cmd=None, env=None, opensim=True):
+                 exec_name=None, env=None, opensim=True):
         super(ToolTask, self).__init__(trial)
         self.exec_name = exec_name
-        self.cmd = cmd
         self.env = env
         self.path = setup_task.path
 
@@ -257,29 +260,24 @@ class ToolTask(TrialTask):
             self.name = '%s_%s' % (trial.id, setup_task.tool)
 
         if opensim:
-            self.file_dep = [
-                '%s/setup.xml' % self.path
-                ]
-
             if self.exec_name == None:
                 self.exec_name = setup_task.tool
 
-            if self.cmd == None:
-                cmd_action = CmdAction('"' + os.path.join(
-                    self.study.config['opensim_home'],'bin',self.exec_name)
-                    + '" -S setup.xml',
-                    cwd=os.path.abspath(self.path),
-                    env=self.env)
-            else:
-                cmd_action = CmdAction(self.cmd, 
-                    cwd=os.path.abspath(self.path), env=self.env)
+            self.add_action(['%s/setup.xml' % self.path], [],
+                self.execute_tool)
 
-            self.actions = [
-                    cmd_action,
-                    ]
+    def execute_tool(self, file_dep, target):
+        import subprocess
+        exec_path = os.path.join(self.study.config['opensim_home'],
+                        'bin', self.exec_name) 
+        p = subprocess.Popen('%s -S %s' % (exec_path, file_dep[0]),
+            cwd=self.path, env=self.env)
+        p.wait()
+        if p.returncode != 0:
+            raise Exception('Non-zero exit status: code %s.' % p.returncode)
 
 class PostTask(TrialTask):
-    def __init__(self, setup_task, trial, cycle=None):
+    def __init__(self, setup_task, trial, cycle=None, **kwargs):
         super(PostTask, self).__init__(trial)
         self.methods = list()
         self.path = setup_task.path
