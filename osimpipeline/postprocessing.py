@@ -14,7 +14,6 @@ import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
 import pylab as pl
-import tables
 from scipy.signal import butter, filtfilt
 import scipy.io as sio
 from numpy import nanmean, nanstd

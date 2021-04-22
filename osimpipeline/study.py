@@ -320,7 +320,7 @@ class Subject(object):
     def __init__(self, study, num, mass, metadata=None):
         self.study = study
         self.num = num
-        self.name = 'subject%03i' % num
+        self.name = 'subject%02i' % num
         self.mass = mass
         self.metadata = metadata
         # Relative path to the subject folder; can be used for the source
@@ -378,8 +378,9 @@ class Study(object):
     repository, since different users might choose different values for these
     settings.
     """
-    def __init__(self, name, generic_model_fpath, reserve_actuators_fpath,
-        rra_actuators_fpath=None, cmc_actuators_fpath=None):
+    def __init__(self, name, generic_model_fpath=None, 
+            reserve_actuators_fpath=None, rra_actuators_fpath=None, 
+            cmc_actuators_fpath=None):
         self.name = name
         self.source_generic_model_fpath = generic_model_fpath
         self.source_reserve_actuators_fpath = reserve_actuators_fpath
@@ -399,8 +400,7 @@ class Study(object):
 
         # The copy in the results directory.
         self.generic_model_fpath = os.path.join(self.config['results_path'],
-                'generic_model.osim')
-                #os.path.basename(generic_model_fpath))
+                'generic_model.osim')        
         self.reserve_actuators_fpath = os.path.join(
             self.config['results_path'], 'reserve_actuators.xml')
         self.rra_actuators_fpath = os.path.join(self.config['results_path'],
