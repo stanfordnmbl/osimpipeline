@@ -317,11 +317,12 @@ class Condition(object):
         return (self.get_trial(num) != None)
         
 class Subject(object):
-    def __init__(self, study, num, mass, metadata=None):
+    def __init__(self, study, num, mass, height, metadata=None):
         self.study = study
         self.num = num
         self.name = 'subject%02i' % num
         self.mass = mass
+        self.height = height
         self.metadata = metadata
         # Relative path to the subject folder; can be used for the source
         # directory or the results directory.

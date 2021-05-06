@@ -24,10 +24,11 @@ class TaskCopyGenericModelFilesToResults(task.StudyTask):
                 [study.generic_model_fpath],
                 self.copy_file)
 
-        self.add_action(
-                [study.source_reserve_actuators_fpath],
-                [study.reserve_actuators_fpath],
-                self.copy_file)
+        if study.source_reserve_actuators_fpath:
+            self.add_action(
+                    [study.source_reserve_actuators_fpath],
+                    [study.reserve_actuators_fpath],
+                    self.copy_file)
 
         if study.source_rra_actuators_fpath:
             self.add_action(
@@ -40,7 +41,6 @@ class TaskCopyGenericModelFilesToResults(task.StudyTask):
                 [study.source_cmc_actuators_fpath],
                 [study.cmc_actuators_fpath],
                 self.copy_file)
-
 
 class TaskCopyMotionCaptureData(task.StudyTask):
     """This a very generic task for copying motion capture data (marker
@@ -94,9 +94,9 @@ class TaskCopyMotionCaptureData(task.StudyTask):
         self.actions += [self.copy_files]
 
     def register_files(self):
-        # Keys are source file paths (file_dep), values are destination paths
-        # (targets).
-        self.registry = dict()
+        # List of two-element tuples with file paths (file_dep) and destination 
+        # paths (targets).
+        self.registry = list()
         mocap_dir = self.study.config['motion_capture_data_path']
         results_dir = self.study.config['results_path']
         # Use regular expressions to copy/rename files.
@@ -106,19 +106,19 @@ class TaskCopyMotionCaptureData(task.StudyTask):
         # expressions given to this task.
         for dirpath, dirnames, filenames in os.walk(mocap_dir):
             for fname in filenames:
-                fpath = os.path.join(dirpath, fname)
+                source = os.path.join(dirpath, fname)
                 # Form path relative to the mocap directory.
-                fpath_rel_to_mocap = os.path.relpath(fpath, mocap_dir)
+                fpath_rel_to_mocap = os.path.relpath(source, mocap_dir)
                 for pattern, replacement in self.regex_replacements:
                     match = re.search(pattern, fpath_rel_to_mocap)
                     if match != None:
                         # Found at least one match.
                         destination = os.path.join(results_dir, re.sub(pattern,
                             replacement, fpath_rel_to_mocap))
-                        self.registry[fpath] = destination
+                        self.registry.append((source, destination))
 
     def copy_files(self):
-        for source, destination in self.registry.items():
+        for (source, destination) in self.registry:
             fname = os.path.split(source)[1]
             to_dir = os.path.split(destination)[0]
             if not os.path.exists(to_dir): os.makedirs(to_dir)
@@ -309,24 +309,24 @@ class TaskScaleSetup(task.SubjectTask):
 
         if not os.path.exists(self.results_scale_path):
             os.makedirs(self.results_scale_path)
-        tool.printToXML(target['setup'])
-            
+        tool.printToXML(target['setup'])    
 
 class TaskScale(task.SubjectTask):
     REGISTRY = []
     residual_actuators_template = 'templates/residual_actuators.xml'
-    def __init__(self, subject, scale_setup_task, 
-            ignore_nonexistant_data=False,
-            ):
+    def __init__(self, subject, scale_setup_task, ignore_nonexistant_data=False,
+            ignore_unused_markers=False):
         super(TaskScale, self).__init__(subject)
         self.name = '%s_scale' % (self.subject.name)
         self.doc = "Run OpenSim's Scale Tool."
         self.ignore_nonexistant_data = ignore_nonexistant_data
+        self.ignore_unused_markers = ignore_unused_markers
 
         # file_dep
         # --------
-        setup_fname = 'setup.xml'
+        self.setup_fname = 'setup.xml'
         self.setup_fpath = scale_setup_task.setup_fpath
+        self.setup_results_fpath = scale_setup_task.results_scale_path
         self.generic_model_fpath = self.study.generic_model_fpath
         self.marker_trajectories_fpath = \
                 scale_setup_task.mocap_trial.marker_trajectories_fpath
@@ -337,18 +337,17 @@ class TaskScale(task.SubjectTask):
                 self.generic_model_fpath,
                 self.prescale_markerset_fpath,
                 self.marker_trajectories_fpath,
-                self.residual_actuators_template,
+                # self.residual_actuators_template,
                 ]
 
         # actions
         # -------
+        self.scale_exe_path = os.path.join(self.study.config['opensim_home'],
+                        'bin', 'scale') 
         self.actions += [
                 self.check_tasks,
-                CmdAction(
-                    '"' + os.path.join(self.study.config['opensim_home'],
-                        'bin','scale') + '" -S %s' % (setup_fname),
-                    cwd=scale_setup_task.results_scale_path),
-                self.create_residual_actuators,
+                self.run_scale_tool,
+                # self.create_residual_actuators, # TODO create separate task
                 ]
 
         # targets
@@ -362,7 +361,7 @@ class TaskScale(task.SubjectTask):
                 self.output_model_fpath,
                 scale_setup_task.output_motion_fpath,
                 scale_setup_task.output_markerset_fpath,
-                self.residual_actuators_fpath,
+                # self.residual_actuators_fpath,
                 ]
 
     def check_tasks(self):
@@ -405,7 +404,7 @@ class TaskScale(task.SubjectTask):
         for name in trc.marker_names:
             if (not markerset.contains(name)) or (not tasks.contains(name)):
                 unused_markers.append(name)
-        if unused_markers != []:
+        if unused_markers != [] and not self.ignore_unused_markers:
             raise Exception("You have data for the following markers, but "
                     "you are not using them in Scale's IK: {}".format(
                         unused_markers))
@@ -420,6 +419,15 @@ class TaskScale(task.SubjectTask):
         if excess_model_markers != []:
             raise Exception("The following model markers do not have tasks or "
                     "experimental data: {}".format(excess_model_markers))
+
+    def run_scale_tool(self):
+        import subprocess
+        p = subprocess.Popen(
+            '%s -S %s' % (self.scale_exe_path , self.setup_fname),
+            cwd=self.setup_results_fpath)
+        p.wait()
+        if p.returncode != 0:
+            raise Exception('Non-zero exit status: code %s.' % p.returncode)
 
     def create_residual_actuators(self):
         ft = open(self.residual_actuators_template)
@@ -454,20 +462,21 @@ class TaskScale(task.SubjectTask):
         f.write(content)
         f.close()
 
-
 class TaskGRFGaitLandmarks(task.TrialTask):
     # TODO not actually a trial task if for treadmill...
     REGISTRY = []
     def __init__(self, trial,
                 right_grfy_column_name='ground_force_r_vy',
                 left_grfy_column_name='ground_force_l_vy',
-                threshold=5,
+                threshold=5, min_time=None, max_time=None,
                 **kwargs):
         super(TaskGRFGaitLandmarks, self).__init__(trial)
         self.name = '%s_gait_landmarks' % trial.id
         self.doc = 'Plot vertical ground reaction force.'
         self.right_grfy_column_name = right_grfy_column_name
         self.left_grfy_column_name = left_grfy_column_name
+        self.min_time = min_time
+        self.max_time = max_time
         self.kwargs = kwargs
         self.threshold = threshold
         self.add_action(
@@ -480,10 +489,11 @@ class TaskGRFGaitLandmarks(task.TrialTask):
                 right_grfy_column_name=self.right_grfy_column_name,
                 left_grfy_column_name=self.left_grfy_column_name,
                 threshold=self.threshold,
+                min_time=self.min_time,
+                max_time=self.max_time,
                 do_plot=True,
                 **self.kwargs)
         pl.gcf().savefig(target[0])
-
 
 class TaskIKSetup(task.SetupTask):
     REGISTRY = []
@@ -493,7 +503,8 @@ class TaskIKSetup(task.SetupTask):
         self.solution_fpath = os.path.join(self.path, 
             '%s_%s_ik_solution.mot' % (self.study.name, self.tricycle.id))
         self.model_markers_fpath = os.path.join(self.path, 
-            'ik_model_marker_locations.sto')
+            '%s_%s_ik_ik_model_marker_locations.sto' % 
+                (trial.study.name, self.tricycle.id))
 
         # Fill out tasks.xml template and copy over to results directory
         self.create_tasks_action()
@@ -520,7 +531,6 @@ class TaskIKSetup(task.SetupTask):
         with open(target[0], 'w') as f:
             f.write(content)
 
-
 class TaskIK(task.ToolTask):
     REGISTRY = []
     def __init__(self, trial, ik_setup_task, **kwargs):
@@ -537,9 +547,8 @@ class TaskIK(task.ToolTask):
                 ik_setup_task.model_markers_fpath
                 ]
 
-
 class TaskIKPost(task.PostTask):
-    REGISTRY=[]
+    REGISTRY = []
     def __init__(self, trial, ik_setup_task, error_markers=None, side=None,
              **kwargs):
         super(TaskIKPost, self).__init__(ik_setup_task, trial, **kwargs)
@@ -575,7 +584,6 @@ class TaskIKPost(task.PostTask):
         #             self.errorplot_fpath.replace('.pdf', '_backup.pdf'))
         pp.plot_marker_error(target[0], self.error_markers, 
             10, self.gl, file_dep[0], file_dep[1], file_dep[2])
-
     
 class TaskIDSetup(task.SetupTask):
     REGISTRY = []

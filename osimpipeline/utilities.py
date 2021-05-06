@@ -1,12 +1,13 @@
 
 import os
 import sys
-#import opensim as osm
+#import opensim as osim
 import numpy as np
 import pandas as pd
 import pylab as pl
 import warnings
 import h5py
+import opensim as osim
 
 class working_directory():
     """Use this to temporarily run code with some directory as a working
@@ -22,6 +23,19 @@ class working_directory():
         os.chdir(self.path)
     def __exit__(self, *exc_info):
         os.chdir(self.original_working_dir)
+
+def toarray(simtk_vector):
+    array = np.empty(simtk_vector.size())
+    for i in range(simtk_vector.size()):
+        array[i] = simtk_vector[i]
+    return array
+
+def publication_spines(axes):
+    axes.spines['right'].set_visible(False)
+    axes.yaxis.set_ticks_position('left')
+    axes.spines['top'].set_visible(False)
+    axes.xaxis.set_ticks_position('bottom')
+    axes.tick_params(axis='both', direction='in')
 
 def storage2numpy(storage_file, excess_header_entries=0):
     """Returns the data from a storage file in a numpy format. Skips all lines
@@ -75,6 +89,225 @@ def storage2numpy(storage_file, excess_header_entries=0):
 
     return data
 
+def ndarray2storage(ndarray, storage_fpath, name=None, in_degrees=False):
+    """Saves an ndarray, with named dtypes, to an OpenSim Storage file.
+    Parameters
+    ----------
+    ndarray : numpy.ndarray
+    storage_fpath : str
+    in_degrees : bool, optional
+    name : str
+        Name of Storage object.
+    """
+    n_rows = ndarray.shape[0]
+    n_cols = len(ndarray.dtype.names)
+
+    f = open(storage_fpath, 'w')
+    f.write('%s\n' % (name if name else storage_fpath,))
+    f.write('version=1\n')
+    f.write('nRows=%i\n' % n_rows)
+    f.write('nColumns=%i\n' % n_cols)
+    f.write('inDegrees=%s\n' % ('yes' if in_degrees else 'no',))
+    f.write('endheader\n')
+    for line_num, col in enumerate(ndarray.dtype.names):
+        if line_num != 0:
+            f.write('\t')
+        f.write('%s' % col)
+    f.write('\n')
+
+    for i_row in range(n_rows):
+        for line_num, col in enumerate(ndarray.dtype.names):
+            if line_num != 0:
+                f.write('\t')
+            f.write('%f' % ndarray[col][i_row])
+        f.write('\n')
+
+    f.close()
+
+def filter_critically_damped(data, sampling_rate, lowpass_cutoff_frequency,
+        order=4):
+    """See Robertson, 2003. This code is transcribed from some MATLAB code that
+    Amy Silder gave me. This implementation is slightly different from that
+    appearing in Robertson, 2003. We only allow lowpass filtering.
+    Parameters
+    ----------
+    data : array_like
+        The signal to filter.
+    sampling_rate : float
+    lowpass_cutoff_frequency : float
+        In Hertz (not normalized).
+    order : int, optional
+        Number of filter passes.
+    Returns
+    -------
+    data : array_like
+        Filtered data.
+    """
+    # 3 dB cutoff correction.
+    Clp = (2.0 ** (1.0 / (2.0 * order)) - 1.0) ** (-0.5)
+
+    # Corrected cutoff frequency.
+    flp = Clp * lowpass_cutoff_frequency / sampling_rate
+
+    # Warp cutoff frequency from analog to digital domain.
+    wolp = np.tan(np.pi * flp)
+
+    # Filter coefficients, K1 and K2.
+    # lowpass: a0 = A0, a1 = A1, a2 = A2, b1 = B2, b2 = B2
+    K1lp = 2.0 * wolp
+    K2lp = wolp ** 2
+
+    # Filter coefficients.
+    a0lp = K2lp / (1.0 + K1lp + K2lp)
+    a1lp = 2.0 * a0lp
+    a2lp = a0lp
+    b1lp = 2.0 * a0lp  * (1.0 / K2lp - 1.0)
+    b2lp = 1.0 - (a0lp + a1lp + a2lp + b1lp)
+
+    num_rows = len(data)
+    temp_filtered = np.zeros(num_rows)
+    # For order = 4, we go forward, backward, forward, backward.
+    for n_pass in range(order):
+        for i in range(2, num_rows):
+            temp_filtered[i] = (a0lp * data[i] +
+                    a1lp * data[i - 1] +
+                    a2lp * data[i - 2] +
+                    b1lp * temp_filtered[i - 1] +
+                    b2lp * temp_filtered[i - 2])
+        # Perform the filter backwards.
+        data = np.flipud(temp_filtered)
+        temp_filtered = np.zeros(num_rows)
+
+    return data
+
+def plot_joint_moment_breakdown(model, moco_traj,
+                                coord_paths, muscle_paths=None,
+                                coordact_paths=[]):
+    model.initSystem()
+
+    num_coords = len(coord_paths)
+
+    if not muscle_paths:
+        muscle_paths = list()
+        for muscle in model.getMuscleList():
+            muscle_paths.append(muscle.getAbsolutePathString())
+    num_muscles = len(muscle_paths)
+
+    num_coordact = len(coordact_paths)
+
+
+    net_joint_moments = None
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        id_tool = osim.InverseDynamicsTool()
+        modelID = osim.Model(model)
+        id_tool.setModel(modelID)
+        table = moco_traj.exportToStatesTable()
+        labels = list(table.getColumnLabels())
+        import re
+        for ilabel in range(len(labels)):
+            labels[ilabel] = labels[ilabel].replace('/value', '')
+            labels[ilabel] = re.sub('/jointset/(.*?)/', '', labels[ilabel])
+        table.setColumnLabels(labels)
+
+        storage = osim.Storage()
+        stolabels = osim.ArrayStr()
+        stolabels.append('time')
+        for label in labels:
+            stolabels.append(label)
+        storage.setColumnLabels(stolabels)
+
+        times = table.getIndependentColumn()
+        for i_time in np.arange(table.getNumRows()):
+            rowVector = osim.RowVector(table.getRowAtIndex(int(i_time)))
+            storage.append(times[i_time], rowVector.transpose())
+        
+        id_tool.setCoordinateValues(storage)
+        # id_tool.setExternalLoadsFileName(extloads_fpath)
+        excludedForces = osim.ArrayStr()
+        excludedForces.append('ACTUATORS')
+        id_tool.setExcludedForces(excludedForces)
+        id_result = 'joint_moment_breakdown_residuals.sto'
+        id_tool.setResultsDir(tmpdirname)
+        id_tool.setOutputGenForceFileName(id_result)
+        # TODO: Remove muscles from the model?
+        id_tool.run()
+
+        net_joint_moments = osim.TimeSeriesTable(
+            os.path.join(tmpdirname, id_result))
+
+    time = moco_traj.getTimeMat()
+
+    states_traj = moco_traj.exportToStatesTrajectory(model)
+
+    # TODO for models without activation dynamics, we must prescribeControlsToModel().
+
+    fig = pl.figure(figsize=(8.5, 11))
+    tendon_forces = np.empty((len(time), num_muscles))
+    for imusc, muscle_path in enumerate(muscle_paths):
+        muscle = model.getComponent(muscle_path)
+        for itime in range(len(time)):
+            state = states_traj.get(itime)
+            model.realizeDynamics(state)
+            tendon_forces[itime, imusc] = muscle.getTendonForce(state)
+
+
+    coordact_moments = np.empty((len(time), num_coordact))
+    for ica, coordact_paths in enumerate(coordact_paths):
+        coordact = model.getComponent(coordact_paths)
+        for itime in range(len(time)):
+            state = states_traj.get(itime)
+            model.realizeDynamics(state)
+            coordact_moments[itime, ica] = coordact.getActuation(state)
+
+
+    for icoord, coord_path in enumerate(coord_paths):
+        coord = model.getComponent(coord_path)
+
+        label = os.path.split(coord_path)[-1] + '_moment'
+        net_moment = toarray(net_joint_moments.getDependentColumn(label))
+
+        moment_arms = np.empty((len(time), num_muscles))
+        for imusc, muscle_path in enumerate(muscle_paths):
+            muscle = model.getComponent(muscle_path)
+            for itime in range(len(time)):
+                state = states_traj.get(itime)
+                moment_arms[itime, imusc] = \
+                    muscle.computeMomentArm(state, coord)
+
+        ax = fig.add_subplot(num_coords, 1, icoord + 1)
+        net_integ = np.trapz(np.abs(net_moment), x=time)
+        sum_actuators_shown = np.zeros_like(time)
+        for imusc, muscle_path in enumerate(muscle_paths):
+            if np.any(moment_arms[:, imusc]) > 0.00001:
+                this_moment = tendon_forces[:, imusc] * moment_arms[:, imusc]
+                mom_integ = np.trapz(np.abs(this_moment), time)
+                if mom_integ > 0.01 * net_integ:
+                    ax.plot(time, this_moment, label=muscle_path)
+
+                    sum_actuators_shown += this_moment
+
+        for ica, coordact_path in enumerate(coordact_paths):
+            this_moment = coordact_moments[:, ica]
+            ax.plot(time, this_moment, label=coordact_path)
+            sum_actuators_shown += this_moment
+
+        ax.plot(time, sum_actuators_shown,
+                label='sum actuators shown', color='gray', linewidth=2)
+
+        ax.plot(time, net_moment,
+                label='net', color='black', linewidth=2)
+
+        ax.set_title(coord_path)
+        ax.set_ylabel('moment (N-m)')
+        ax.legend(frameon=False, bbox_to_anchor=(1, 1),
+                  loc='upper left', ncol=2)
+        ax.tick_params(axis='both')
+    ax.set_xlabel('time (% gait cycle)')
+
+    fig.tight_layout()
+    return fig
+
 class GaitLandmarks(object):
     def __init__(self,
             primary_leg=None,
@@ -105,12 +338,11 @@ def enable_probes(model_fpath):
         Path to a model (.OSIM) file.
 
     """
-    model = osm.Model(model_fpath)
+    model = osim.Model(model_fpath)
     n_probes = model.getProbeSet().getSize()
     for i_probe in range(n_probes):
         model.updProbeSet().get(i_probe).setDisabled(False)
     printobj(model, model_fpath)
-
 
 def gait_landmarks_from_grf(mot_file,
         right_grfy_column_name='ground_force_vy',
@@ -168,6 +400,9 @@ def gait_landmarks_from_grf(mot_file,
     time = data['time']
     right_grfy = data[right_grfy_column_name]
     left_grfy = data[left_grfy_column_name]
+
+    def nearest_index(time, index_time):
+        return np.argmin(np.abs(time-index_time))
 
     # Time range to consider.
     if max_time == None: max_idx = len(time)
@@ -613,10 +848,10 @@ class Scale:
         scaleset : org.opensim.modeling.ScaleSet, optional
             A ScaleSet to adopt-and-append the org.opensim.modeling.Scale to.
         """
-        self.scale = osm.Scale()
+        self.scale = osim.Scale()
         self.scale.setName(body_name)
         self.scale.setSegmentName(body_name)
-        self.scale.setScaleFactors(osm.Vec3(x, y, z))
+        self.scale.setScaleFactors(osim.Vec3(x, y, z))
         if scale_set:
             scale_set.cloneAndAppend(self.scale)
                 
@@ -636,7 +871,7 @@ class Measurement:
             org.opensim.modeling.Measurement to.
 
         """
-        self.measurement = osm.Measurement()
+        self.measurement = osim.Measurement()
         self.measurement.setName(name)
         if measurement_set:
             measurement_set.adoptAndAppend(self.measurement)
@@ -654,9 +889,9 @@ class Measurement:
             Default is isometric.
 
         """
-        bs = osm.BodyScale()
+        bs = osim.BodyScale()
         bs.setName(name)
-        axis_names = osm.ArrayStr()
+        axis_names = osim.ArrayStr()
         for ax in axes:
             axis_names.append(ax)
         bs.setAxisNames(axis_names)
@@ -687,7 +922,7 @@ class Measurement:
             Name of the second marker in the pair.
 
         """
-        mp = osm.MarkerPair()
+        mp = osim.MarkerPair()
         mp.setMarkerName(0, marker0)
         mp.setMarkerName(1, marker1)
         self.measurement.getMarkerPairSet().cloneAndAppend(mp)
@@ -715,7 +950,7 @@ class IKTaskSet:
         if iktaskset:
             self.iktaskset = iktaskset
         else:
-            self.iktaskset = osm.IKTaskSet()
+            self.iktaskset = osim.IKTaskSet()
 
     def add_ikmarkertask(self, name, do_apply, weight):
         """Creates an IKMarkerTask and appends it to the IKTaskSet.
@@ -730,7 +965,7 @@ class IKTaskSet:
             org.opensim.modeling.IKMarkerTask.setWeight(weight)
 
         """
-        ikt = osm.IKMarkerTask()
+        ikt = osim.IKMarkerTask()
         ikt.setName(name)
         ikt.setApply(do_apply)
         ikt.setWeight(weight)
@@ -766,7 +1001,7 @@ class IKTaskSet:
             org.opensim.modeling.IKMarkerTask.setWeight(weight)
 
         """
-        ikt = osm.IKCoordinateTask()
+        ikt = osim.IKCoordinateTask()
         ikt.setName(name)
         ikt.setApply(do_apply)
         ikt.setValueType(ikt.ManualValue)

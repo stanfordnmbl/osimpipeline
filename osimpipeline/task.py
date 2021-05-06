@@ -244,10 +244,9 @@ class SetupTask(TrialTask):
 
 class ToolTask(TrialTask):
     def __init__(self, setup_task, trial, cycle=None,
-                 exec_name=None, cmd=None, env=None, opensim=True):
+                 exec_name=None, env=None, opensim=True):
         super(ToolTask, self).__init__(trial)
         self.exec_name = exec_name
-        self.cmd = cmd
         self.env = env
         self.path = setup_task.path
 
@@ -257,26 +256,21 @@ class ToolTask(TrialTask):
             self.name = '%s_%s' % (trial.id, setup_task.tool)
 
         if opensim:
-            self.file_dep = [
-                '%s/setup.xml' % self.path
-                ]
-
             if self.exec_name == None:
                 self.exec_name = setup_task.tool
 
-            if self.cmd == None:
-                cmd_action = CmdAction('"' + os.path.join(
-                    self.study.config['opensim_home'],'bin',self.exec_name)
-                    + '" -S setup.xml',
-                    cwd=os.path.abspath(self.path),
-                    env=self.env)
-            else:
-                cmd_action = CmdAction(self.cmd, 
-                    cwd=os.path.abspath(self.path), env=self.env)
+            self.add_action(['%s/setup.xml' % self.path], [],
+                self.execute_tool)
 
-            self.actions = [
-                    cmd_action,
-                    ]
+    def execute_tool(self, file_dep, target):
+        import subprocess
+        exec_path = os.path.join(self.study.config['opensim_home'],
+                        'bin', self.exec_name) 
+        p = subprocess.Popen('%s -S %s' % (exec_path, file_dep[0]),
+            cwd=self.path, env=self.env)
+        p.wait()
+        if p.returncode != 0:
+            raise Exception('Non-zero exit status: code %s.' % p.returncode)
 
 class PostTask(TrialTask):
     def __init__(self, setup_task, trial, cycle=None):
