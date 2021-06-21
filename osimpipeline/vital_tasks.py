@@ -659,10 +659,23 @@ class TaskIDPost(task.PostTask):
             fname = 'joint_torques_cycle%02d.pdf' % cycle.num
             output_filepath = os.path.join(self.path, fname)
 
+            # TODO doesn't work if only "interval" is set on gait cycle
+            primary_footstrike = 0
+            opposite_footstrike = 0
+            toeoff_time = None
+            if self.trial.primary_leg == 'right':
+                primary_footstrike = cycle.gl.right_strike
+                opposite_footstrike = cycle.gl.left_strike
+                toeoff_time = cycle.gl.right_toeoff
+            else:
+                primary_footstrike = cycle.gl.left_strike
+                opposite_footstrike = cycle.gl.right_strike
+                toeoff_time = cycle.gl.left_toeoff
+
             pp.plot_gait_torques(output_filepath, id_array, 
                 self.trial.primary_leg, cycle.start, cycle.end,
-                cycle.gl.right_strike, cycle.gl.left_strike, 
-                toeoff_time=cycle.gl.right_toeoff)
+                primary_footstrike, opposite_footstrike, 
+                toeoff_time=toeoff_time)
 
 class TaskSOSetup(task.SetupTask):
     REGISTRY = []
