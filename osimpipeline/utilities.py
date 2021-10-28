@@ -30,12 +30,15 @@ def toarray(simtk_vector):
         array[i] = simtk_vector[i]
     return array
 
-def publication_spines(axes):
+def publication_spines(axes, drop_axes=False):
     axes.spines['right'].set_visible(False)
     axes.yaxis.set_ticks_position('left')
     axes.spines['top'].set_visible(False)
     axes.xaxis.set_ticks_position('bottom')
     axes.tick_params(axis='both', direction='in')
+    if drop_axes:
+        axes.spines['left'].set_position(('outward', 10))
+        axes.spines['bottom'].set_position(('outward', 10))
 
 def storage2numpy(storage_file, excess_header_entries=0):
     """Returns the data from a storage file in a numpy format. Skips all lines
