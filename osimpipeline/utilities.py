@@ -24,7 +24,7 @@ class working_directory():
     def __exit__(self, *exc_info):
         os.chdir(self.original_working_dir)
 
-def toarray(simtk_vector):
+def simtk2numpy(simtk_vector):
     array = np.empty(simtk_vector.size())
     for i in range(simtk_vector.size()):
         array[i] = simtk_vector[i]
@@ -268,7 +268,7 @@ def plot_joint_moment_breakdown(model, moco_traj,
         coord = model.getComponent(coord_path)
 
         label = os.path.split(coord_path)[-1] + '_moment'
-        net_moment = toarray(net_joint_moments.getDependentColumn(label))
+        net_moment = simtk2numpy(net_joint_moments.getDependentColumn(label))
 
         moment_arms = np.empty((len(time), num_muscles))
         for imusc, muscle_path in enumerate(muscle_paths):
