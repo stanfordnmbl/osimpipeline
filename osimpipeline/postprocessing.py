@@ -3,20 +3,12 @@ quantities, such as sum of squared activations, from simulation (e.g., CMC)
 results.
 
 """
-import collections
 import copy
 import os
-import re
-import warnings
 
 import numpy as np
 import pandas as pd
-import matplotlib
-import matplotlib.pyplot as plt
 import pylab as pl
-from scipy.signal import butter, filtfilt
-import scipy.io as sio
-from numpy import nanmean, nanstd
 
 import platform
 
@@ -43,6 +35,21 @@ def savefigtolog(figname, *args, **kwargs):
 
 def nearest_index(array, val):
     return np.abs(array - val).argmin()
+
+# Darken or lighten color by value 'amount'. Values less
+# than 1 lighten the color, and values greater than 1 
+# darken the color.
+#
+# https://stackoverflow.com/questions/37765197/darken-or-lighten-a-color-in-matplotlib
+def adjust_lightness(color, amount=0.5):
+    import matplotlib.colors as mc
+    import colorsys
+    try:
+        c = mc.cnames[color]
+    except:
+        c = color
+    c = colorsys.rgb_to_hls(*mc.to_rgb(c))
+    return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
 
 def plot_lower_limb_kinematics(kinematics_q_fpath, gl=None,
         kinematics_q_compare_fpath=None, compare_name=None, side=None):

@@ -1,6 +1,5 @@
 
 import os
-import sys
 #import opensim as osim
 import numpy as np
 import pandas as pd
