@@ -989,7 +989,7 @@ class IKTaskSet:
         self.add_ikmarkertask('L%s' % name, do_apply, weight)
         self.add_ikmarkertask('R%s' % name, do_apply, weight)
 
-    def add_ikcoordinatetask(self, name, do_apply, manual_value, weight):
+    def add_ikcoordinatetask(self, name, do_apply, weight, manual_value=None):
         """Creates an IKCoordinateTask (using a manual value) and appends it to
         the IKTaskSet.
 
@@ -1006,13 +1006,16 @@ class IKTaskSet:
         ikt = osim.IKCoordinateTask()
         ikt.setName(name)
         ikt.setApply(do_apply)
-        ikt.setValueType(ikt.ManualValue)
-        ikt.setValue(manual_value)
+        if manual_value:
+            ikt.setValueType(ikt.ManualValue)
+            ikt.setValue(manual_value)
+        else:
+            ikt.setValueType(ikt.DefaultValue)
         ikt.setWeight(weight)
         self.iktaskset.cloneAndAppend(ikt)
 
-    def add_ikcoordinatetask_bilateral(self, name, do_apply, manual_value,
-            weight):
+    def add_ikcoordinatetask_bilateral(self, name, do_apply, weight,
+            manual_value=None):
         """Adds two IKCoordinateTask's to the IKTaskSet.
 
         Parameters
@@ -1024,7 +1027,7 @@ class IKTaskSet:
             See `add_ikcoordinatetask`.
 
         """
-        self.add_ikcoordinatetask('%s_l' % name, do_apply, manual_value,
-                weight)
-        self.add_ikcoordinatetask('%s_r' % name, do_apply, manual_value,
-                weight)
+        self.add_ikcoordinatetask('%s_l' % name, do_apply, weight,
+                manual_value=manual_value)
+        self.add_ikcoordinatetask('%s_r' % name, do_apply, weight,
+                manual_value=manual_value)
