@@ -266,6 +266,8 @@ class ToolTask(TrialTask):
         import subprocess
         exec_path = os.path.join(self.study.config['opensim_home'],
                         'bin', self.exec_name) 
+        print(exec_path)
+        print(file_dep[0])
         p = subprocess.Popen('%s -S %s' % (exec_path, file_dep[0]),
             cwd=self.path, env=self.env)
         p.wait()

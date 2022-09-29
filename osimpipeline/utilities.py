@@ -24,8 +24,8 @@ class working_directory():
     def __exit__(self, *exc_info):
         os.chdir(self.original_working_dir)
 
-def toarray(simtk_vector):
-    array = np.empty(simtk_vector.size())
+def simtk2numpy(simtk_vector):
+    array = np.zeros(simtk_vector.size())
     for i in range(simtk_vector.size()):
         array[i] = simtk_vector[i]
     return array
@@ -242,7 +242,7 @@ def plot_joint_moment_breakdown(model, moco_traj,
 
     # TODO for models without activation dynamics, we must prescribeControlsToModel().
 
-    fig = pl.figure(figsize=(8.5, 11))
+    fig = pl.figure(figsize=(9, 3*len(coord_paths)))
     tendon_forces = np.empty((len(time), num_muscles))
     for imusc, muscle_path in enumerate(muscle_paths):
         muscle = model.getComponent(muscle_path)
@@ -265,7 +265,7 @@ def plot_joint_moment_breakdown(model, moco_traj,
         coord = model.getComponent(coord_path)
 
         label = os.path.split(coord_path)[-1] + '_moment'
-        net_moment = toarray(net_joint_moments.getDependentColumn(label))
+        net_moment = simtk2numpy(net_joint_moments.getDependentColumn(label))
 
         moment_arms = np.empty((len(time), num_muscles))
         for imusc, muscle_path in enumerate(muscle_paths):
@@ -306,7 +306,7 @@ def plot_joint_moment_breakdown(model, moco_traj,
     ax.set_xlabel('time (% gait cycle)')
 
     fig.tight_layout()
-    return fig
+    return fig, net_joint_moments
 
 class GaitLandmarks(object):
     def __init__(self,

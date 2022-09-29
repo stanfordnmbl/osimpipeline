@@ -164,7 +164,7 @@ class Trial(object):
             elif ((self.left_strikes and not self.right_strikes) or 
                  (len(self.left_strikes) == len(self.right_strikes)+1)):
                 self.heel_strikes = self.left_strikes
-                self.primary_leg='left'
+                self.primary_leg = 'left'
 
             else:
                 raise Exception("Invalid gait landmarks specified: ensure "
