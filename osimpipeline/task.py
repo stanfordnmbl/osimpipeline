@@ -244,9 +244,9 @@ class SetupTask(TrialTask):
 
 class ToolTask(TrialTask):
     def __init__(self, setup_task, trial, cycle=None,
-                 exec_name=None, env=None, opensim=True):
+                 env=None, opensim=True):
         super(ToolTask, self).__init__(trial)
-        self.exec_name = exec_name
+        # self.exec_name = exec_name
         self.env = env
         self.path = setup_task.path
 
@@ -256,8 +256,8 @@ class ToolTask(TrialTask):
             self.name = '%s_%s' % (trial.id, setup_task.tool)
 
         if opensim:
-            if self.exec_name == None:
-                self.exec_name = setup_task.tool
+            # if self.exec_name == None:
+            #     self.exec_name = setup_task.tool
 
             self.add_action(['%s/setup.xml' % self.path], [],
                 self.execute_tool)
@@ -265,10 +265,8 @@ class ToolTask(TrialTask):
     def execute_tool(self, file_dep, target):
         import subprocess
         exec_path = os.path.join(self.study.config['opensim_home'],
-                        'bin', self.exec_name) 
-        print(exec_path)
-        print(file_dep[0])
-        p = subprocess.Popen('%s -S %s' % (exec_path, file_dep[0]),
+                        'bin', 'opensim-cmd') 
+        p = subprocess.Popen('%s run-tool %s' % (exec_path, file_dep[0]),
             cwd=self.path, env=self.env)
         p.wait()
         if p.returncode != 0:
