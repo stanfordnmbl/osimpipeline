@@ -343,7 +343,7 @@ class TaskScale(task.SubjectTask):
         # actions
         # -------
         self.scale_exe_path = os.path.join(self.study.config['opensim_home'],
-                        'bin', 'scale') 
+                        'bin', 'opensim-cmd') 
         self.actions += [
                 self.check_tasks,
                 self.run_scale_tool,
@@ -423,7 +423,7 @@ class TaskScale(task.SubjectTask):
     def run_scale_tool(self):
         import subprocess
         p = subprocess.Popen(
-            '%s -S %s' % (self.scale_exe_path , self.setup_fname),
+            '%s run-tool %s' % (self.scale_exe_path , self.setup_fname),
             cwd=self.setup_results_fpath)
         p.wait()
         if p.returncode != 0:
