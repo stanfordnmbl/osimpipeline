@@ -423,7 +423,7 @@ class TaskScale(task.SubjectTask):
     def run_scale_tool(self):
         import subprocess
         p = subprocess.Popen(
-            '%s run-tool %s' % (self.scale_exe_path , self.setup_fname),
+            [self.scale_exe_path, 'run-tool', self.setup_fname],
             cwd=self.setup_results_fpath)
         p.wait()
         if p.returncode != 0:
